@@ -1,92 +1,121 @@
-# Release-Builder
+# How to use this tool
 
+## Setup pom files for each project
 
+- Setup a project pom for each specific company and artifact that you want to build. The
+pom for will be used to calculate the classpath, and build the artifact
 
-## Getting started
+- Here is a sample template for build you can modified your self
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+                 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+    <groupId>com.ttl.company</groupId>
+    <artifactId>TPS</artifactId>
+    <packaging>pom</packaging>
+    <version>0.0.1-SNAPSHOT</version>
 
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
+    <!-- sub modules -->
+    <modules>
+        <module>CoreCommon</module>
+        <module>CoreServer</module>
+        <module>HKSCommon</module>
+        <module>HKSFOCommon</module>
+        <module>HKSFOServer</module>
+        <module>InvestNetServer</module>
+        <module>MDI</module>
+        <module>TP</module>
+        <module>VNServer</module>
+        <module>WinVestStudio</module>
+        <module>TPSServerBuild</module>
+        <module>XSF</module>
+        <module>CoreClient</module>
+        <module>WVC</module>
+        <module>InvestNetClient</module>
+        <module>VNClient</module>
+        <module>TPSClientBuild</module>
+    </modules>
+</project>%
 ```
-cd existing_repo
-git remote add origin https://gitlab.tx-tech.com/internal-vn-tool/release-builder.git
-git branch -M develop
-git push -uf origin develop
+## Building the project to get executable jar (Optional)
+
+- Run `mvn clean compile assembly:single` to build the tool
+- Run `java -jar <path-to-jar> -ui` for UI mode or `java -jar <path-to-jar> --help` for what flags can be used to run in cli mode
+- Here is a example command to build your package using cli mode for already cloned project
+```bash
+java -jar ReleaseBuilder-0.0.1-SNAPSHOT-jar-with-dependencies.jar -fetch -updateSnapshot -mavenClean --clonedDir /tmp/buildSrc --artifactFolder /tmp/buildArtifact -buildReleasePackage --gitUser <your-git-user> --gitPassword <your-git-password> --m2SettingsXml <custom-setting-xml-if-not-default> --baseCommit <starting-commit> --targetCommit <end-commit>
 ```
 
-## Integrate with your tools
+# Internal working of the tools
 
-- [ ] [Set up project integrations](https://gitlab.tx-tech.com/internal-vn-tool/release-builder/-/settings/integrations)
+When building the patch for the project, the tools will do the following
 
-## Collaborate with your team
+<ol>
+  <li>Prepare your local repo for the build</li>
+    <ol style="list-style-type: upper-alpha">
+        <li>Save a reference to your current HEAD</li>
+        <li>Stash any modifications (including untracked files and staging indexes)</li>
+        <li>Checkout target commit</li>
+    </ol>
+  <li>Copy the company-specific project pom to the repo</li>
+  <li>Use it to build the classfile and classpath. NOTE: if you want to ignore compilation errors of submodules. Refer to the <a href="#faq">FAQ</a></li>
+  <li>Calculate the diff between target commit and base commit, and <u><b>FILTER OUT</b></u> any  changes outside the module defined in the project-company pom</li>
+  <li>Base on the diff, it will locate the class location using the calculated classpaths</li>
+  <li>Copy it to the classes folder inside the artifact folder</li>
+  <li>Zip the classes folder to create the ${artifactId}.jar</li>
+  <li>Checkout your previous HEAD </li>
+</ol>
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Automatically merge when pipeline succeeds](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+# How to debug the builder
 
-## Test and Deploy
+By default, exceptions will be logged to /tmp/error.log, you can check the log to know why the build is not successful. You can also see what's it doing on console output to get more context
 
-Use the built-in continuous integration in GitLab.
+## FAQ
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing(SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+- Where is my local change after running the tool?
 
-***
+It's in your git stash, you can view what it's save with `git stash show stash@{<your-stash-number, e.g: 0, 1,..>}`, to get your stash number you can retrace git operations with `git reflog`, you're expected to unstash any modification after the build
 
-# Editing this README
+- The tools report that it encounter merge conflicts when trying to checkout diffrent commit
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!).  Thank you to [makeareadme.com](https://www.makeareadme.com/) for this template.
+Resolve the conflicts using your prefered tools. Then rerun the builder.
 
-## Suggestions for a good README
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+- I got error `can't calculate classpaths`
 
-## Name
-Choose a self-explaining name for your project.
+By default it will calculate the classpaths for your project using `mvn compile dependency:build-classpath`, make sure your the module can be compiled successfully with maven first. 
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+- I just want it to ignore some compilation errors
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+Add this section to your submodule pom.xml, create a new local commit, then build the artifact using the base commit and your new local commit as target commit
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+```xml
+    <build>
+        <plugins>
+            <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>3.11.0</version>
+            <configuration>
+                <failOnError>false</failOnError>
+            </configuration>
+        </plugin>
+    </plugins>
+  </build>
+```
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+- I encounter ClassNotFoundException
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+If you ignore the compilation errors maven will **TRY IT BEST** to compile any file it can while ignored files that it can't compile. So it could miss your change if your change have compilation error
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+- It's missing some files
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+For java files, if your change is outside the module specified in the project pom.xml then it's file will not be included when building the artifact. Make sure to fully include your modules. Also for config and database changes, prefixes will be used to filter out the change (e.g: config/, config_company/, DatabaseChange/), change that does not meet the conditions above will be ignored 
 
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
+- It got git index.lock error
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+Because it crash while not clean up the lock yet so it's not able to interact with git until that lock is removed. Delete the file .git/index.lock then retry
