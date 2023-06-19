@@ -3,7 +3,10 @@ package com.ttl.internal.vn.tool.builder;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.swing.UnsupportedLookAndFeelException;
 
@@ -79,15 +82,15 @@ public class App {
                                         .numberOfArgs(1)
                                         .build());
                         addOption(Option.builder()
-                                        .desc("The commit that will be used as the base for the build. The artifact produced will be built using the diff from baseCommit to targetCommit")
-                                        .longOpt("baseCommit")
+                                        .desc("The ref (commit hash, branch name,..) that will be used as the base for the build. The artifact produced will be built using the diff from baseRef to targetRef")
+                                        .longOpt("baseRef")
                                         .required(false)
                                         .hasArg(true)
                                         .numberOfArgs(1)
                                         .build());
                         addOption(Option.builder()
-                                        .desc("The commit that is the target of the build")
-                                        .longOpt("targetCommit")
+                                        .desc("The ref (commit hash, branch name,..) that is the target of the build")
+                                        .longOpt("targetRef")
                                         .required(false)
                                         .hasArg(true)
                                         .numberOfArgs(1)
@@ -150,6 +153,18 @@ public class App {
                                         .hasArg(false)
                                         .build());
                         addOption(Option.builder()
+                                        .desc("Git patch file for fixing compilation before running the build. All entry specified in patch file will be excluded from the final artifact")
+                                        .longOpt("patchFile")
+                                        .required(false)
+                                        .hasArg(true)
+                                        .build());
+                        addOption(Option.builder()
+                                        .desc("Java home, if empty default java home will be used")
+                                        .longOpt("javaHome")
+                                        .required(false)
+                                        .hasArg(true)
+                                        .build());
+                        addOption(Option.builder()
                                         .desc("Config prefixes which is going to be used to filter config changes, multiple prefixes could be specified by using comma. Default: config/,config_company/")
                                         .longOpt("configPrefixes")
                                         .required(false)
@@ -167,6 +182,12 @@ public class App {
                                         .required(false)
                                         .hasArg(true)
                                         .numberOfArgs(1)
+                                        .build());
+                      addOption(Option.builder()
+                                        .desc("Whether it will ask for artifact info interactively")
+                                        .option("interactive")
+                                        .required(false)
+                                        .hasArg(false)
                                         .build());
                 }
         };
@@ -194,8 +215,8 @@ public class App {
                         File clonedDir = new File(commandLine.getOptionValue("clonedDir"));
                         String gitUsername = commandLine.getOptionValue("gitUser");
                         String gitPassword = commandLine.getOptionValue("gitPassword");
-                        String baseCommit = commandLine.getOptionValue("baseCommit");
-                        String targetCommit = commandLine.getOptionValue("targetCommit");
+                        String baseRef = commandLine.getOptionValue("baseRef");
+                        String targetRef = commandLine.getOptionValue("targetRef");
                         File artifactFolder = new File(commandLine.getOptionValue("artifactFolder"));
                         boolean buildConfigJar = commandLine.hasOption("buildConfigJar");
                         boolean buildPatch = commandLine.hasOption("buildPatch");
@@ -207,14 +228,23 @@ public class App {
                         String configPrefixes = commandLine.getOptionValue("configPrefixes");
                         boolean updateSnapshot = commandLine.hasOption("updateSnapshot");
                         boolean mavenClean = commandLine.hasOption("mavenClean");
+                        File patchFile = Optional.ofNullable(commandLine.getOptionValue("patchFile"))
+                                .map(File::new)
+                                .filter(File::isFile)
+                                .orElse(null);
+                        boolean interactive = commandLine.hasOption("interactive");
+                        File javaHome = Optional.ofNullable(commandLine.getOptionValue("javaHome"))
+                                .map(File::new)
+                                .filter(File::isFile)
+                                .orElse(null);
                         try (CliBuildTool cliBuildTool = new CliBuildTool(
                                         clone,
                                         repoURI,
                                         clonedDir,
                                         gitUsername,
                                         gitPassword,
-                                        baseCommit,
-                                        targetCommit,
+                                        baseRef,
+                                        targetRef,
                                         artifactFolder,
                                         mavenClean,
                                         updateSnapshot,
@@ -224,8 +254,10 @@ public class App {
                                         configPrefixes,
                                         databaseChangePrefixes,
                                         projectPom,
+                                        javaHome,
+                                        patchFile,
                                         m2SettingsXml,
-                                        DefaultCliGetArtifactInfo::getArtifactInfo)) {
+                                        DefaultCliGetArtifactInfo.getArtifactInfo(interactive))) {
                                 cliBuildTool.startBuildEnvironment();
                                 cliBuildTool.build(fetch);
                         }

@@ -23,12 +23,13 @@ import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 
 import com.formdev.flatlaf.FlatDarkLaf;
-import com.ttl.internal.vn.tool.builder.component.Session.CredentialEntry;
-import com.ttl.internal.vn.tool.builder.component.Session.GitLoginException;
+
 import com.ttl.internal.vn.tool.builder.component.dialog.GitCloneDialog;
 import com.ttl.internal.vn.tool.builder.component.input.Button;
 import com.ttl.internal.vn.tool.builder.component.input.CheckBox;
 import com.ttl.internal.vn.tool.builder.util.GitUtil;
+import com.ttl.internal.vn.tool.builder.util.GitUtil.CredentialEntry;
+import com.ttl.internal.vn.tool.builder.util.GitUtil.GitLoginException;
 import com.ttl.internal.vn.tool.builder.util.SwingGraphicUtil;
 
 public class BuildTool extends JFrame implements ISimpleComponent {
@@ -152,7 +153,7 @@ public class BuildTool extends JFrame implements ISimpleComponent {
                 List<CredentialEntry> foundEntries = session.scanCredential(repoURI);
                 for (CredentialEntry entry : foundEntries) {
                     try {
-                        Session.checkLogin(entry.getUsername(), entry.getPassword(), repoURI);
+                        GitUtil.checkLogin(entry.getUsername(), entry.getPassword(), repoURI);
                         session.setGitUsername(entry.getUsername());
                         session.setGitPassword(entry.getPassword());
                     } catch (GitLoginException | URISyntaxException e1) {

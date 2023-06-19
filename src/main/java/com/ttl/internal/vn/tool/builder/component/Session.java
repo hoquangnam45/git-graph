@@ -42,6 +42,7 @@ import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
 
 import com.ttl.internal.vn.tool.builder.git.GitCommit;
 import com.ttl.internal.vn.tool.builder.util.GitUtil;
+import com.ttl.internal.vn.tool.builder.util.GitUtil.CredentialEntry;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -52,68 +53,8 @@ import lombok.Synchronized;
 @Getter(onMethod_={@Synchronized}) 
 @Setter(onMethod_={@Synchronized}) 
 public class Session implements AutoCloseable {
-    @Getter
-    @AllArgsConstructor
-    @Builder
-    public static class CredentialEntry {
-        private String username;
-        private String password;
-        private String url;
-
-        public CredentialEntry normalize() throws UnsupportedEncodingException, URISyntaxException {
-            String encodedURIWithUsernameAndPassword = encodeCredentialEntry(username, password, url);
-            return parseCredentialEntry(encodedURIWithUsernameAndPassword);
-        }
-
-        @Override
-        public int hashCode() {
-            final int prime = 31;
-            int result = 1;
-            result = prime * result + ((username == null) ? 0 : username.hashCode());
-            result = prime * result + ((password == null) ? 0 : password.hashCode());
-            result = prime * result + ((url == null) ? 0 : url.hashCode());
-            return result;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (this == obj)
-                return true;
-            if (obj == null)
-                return false;
-            if (getClass() != obj.getClass())
-                return false;
-            CredentialEntry other = (CredentialEntry) obj;
-            if (username == null) {
-                if (other.username != null)
-                    return false;
-            } else if (!username.equals(other.username))
-                return false;
-            if (password == null) {
-                if (other.password != null)
-                    return false;
-            } else if (!password.equals(other.password))
-                return false;
-            if (url == null) {
-                if (other.url != null)
-                    return false;
-            } else if (!url.equals(other.url))
-                return false;
-            return true;
-        }
-
-    }
-
-    public static class GitLoginException extends Exception {
-        public GitLoginException(Throwable cause) {
-            super(cause);
-        }
-    }
-
-
     private static volatile Session INSTANCE = new Session();
     private final Object $lock; 
-    private static final String ENCODING_FORMAT = "UTF-8";
     private String gitUsername;
     private String gitPassword;
     private File clonedFolder;
@@ -159,7 +100,7 @@ public class Session implements AutoCloseable {
         CredentialEntry normalizedCredentialEntry = credentialEntry.normalize();
         inMemoryCredentialEntries.add(normalizedCredentialEntry);
         if (useGitCredential) {
-            storeCredentialEntry(normalizedCredentialEntry.username, normalizedCredentialEntry.password, normalizedCredentialEntry.url);
+            storeCredentialEntry(normalizedCredentialEntry.getUsername(), normalizedCredentialEntry.getPassword(), normalizedCredentialEntry.getUrl());
         }
     }
 
@@ -186,7 +127,7 @@ public class Session implements AutoCloseable {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     if (StringUtils.isNotBlank(line)) {
-                        CredentialEntry credential = parseCredentialEntry(line);
+                        CredentialEntry credential = GitUtil.parseCredentialEntry(line);
                         if (credential != null) {
                             credentials.add(credential);
                         }
@@ -206,7 +147,7 @@ public class Session implements AutoCloseable {
             .build()
             .normalize();
         if (!credentials.contains(newEntry)) {
-            String urlEncodedWithUsernameAndPassword = encodeCredentialEntry(newEntry.getUsername(), newEntry.getPassword(), newEntry.getUrl());
+            String urlEncodedWithUsernameAndPassword = GitUtil.encodeCredentialEntry(newEntry.getUsername(), newEntry.getPassword(), newEntry.getUrl());
             if (!dotGitCredentials.exists()) {
                 dotGitCredentials.createNewFile();
             }
@@ -214,63 +155,6 @@ public class Session implements AutoCloseable {
                 writer.append(urlEncodedWithUsernameAndPassword);
             }
         }
-    }
-
-    public static String getRepo(String gitUrl) throws URISyntaxException {
-        URI uri = new URI(gitUrl);
-        String path = uri.getPath();
-        String lastPath = path.substring(path.lastIndexOf("/") + 1);
-        if (!lastPath.toLowerCase().endsWith(".git")) {
-            return "";
-        }
-        return lastPath.substring(0, lastPath.length() - ".git".length());
-    }
-
-    private static String encodeCredentialEntry(String username, String password, String gitUrl) throws URISyntaxException, UnsupportedEncodingException {
-        URI uri = new URI(gitUrl);
-        String encodedUsername = URLEncoder.encode(username, ENCODING_FORMAT);
-        String encodedPassword = URLEncoder.encode(password, ENCODING_FORMAT);
-        URI sanitizedUri = new URI(uri.getScheme(), encodedUsername + ":" + encodedPassword, uri.getHost(), uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment());
-        return sanitizedUri.toASCIIString();
-    }
-
-    public static void checkLogin(String username, String password, String url) throws URISyntaxException, NotSupportedException, GitLoginException {
-        try {
-            CredentialsProvider credentialsProvider = new UsernamePasswordCredentialsProvider(username, password);
-            URIish uri = new URIish(url);
-
-            // Create a TransportHttp object
-            try (TransportHttp transport = (TransportHttp) Transport.open(uri)) {
-                // Set the credentials provider
-                transport.setCredentialsProvider(credentialsProvider);
-                transport.openFetch();
-            }
-        } catch (TransportException e) {
-            throw new GitLoginException(e);
-        }
-    }
-
-    public static CredentialEntry parseCredentialEntry(String entry) throws UnsupportedEncodingException, URISyntaxException {
-        URI uri = new URI(entry);
-        String userInfo = uri.getUserInfo();
-
-        if (userInfo != null) {
-            int separatorIndex = userInfo.indexOf(':');
-            if (separatorIndex != -1) {
-                String encodedUsername = userInfo.substring(0, separatorIndex);
-                String encodedPassword = userInfo.substring(separatorIndex + 1);
-
-                String username = URLDecoder.decode(encodedUsername, ENCODING_FORMAT);
-                String password = URLDecoder.decode(encodedPassword, ENCODING_FORMAT);
-                String url = new URI(uri.getScheme(), null, uri.getHost(), uri.getPort(), uri.getPath(), uri.getQuery(), uri.getFragment()).toASCIIString();
-                return CredentialEntry.builder()
-                    .password(password)
-                    .username(username)
-                    .url(url)
-                    .build();
-            }
-        }
-        return null;
     }
 
     public static Session getInstance() {

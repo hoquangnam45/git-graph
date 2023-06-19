@@ -181,7 +181,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
                             checkOutButton.setText("Checkout " + targetCommit.getShortHash());
                             diffView.setLabel(MessageFormatter.format("Diff {} -> {}", targetCommit.getShortHash(), firstParentBaseCommit.getShortHash()).getMessage());
                             return gitUtil.getDiff(firstParentBaseCommit.getHash(), targetCommit.getHash());
-                        } catch (IOException e1) {
+                        } catch (Exception e1) {
                             handleException(e1);
                             return null;
                         }
@@ -262,7 +262,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
             JOptionPane.showMessageDialog(this, cause.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         } else {
             logger.error(e.getMessage(), e);
-            JOptionPane.showMessageDialog(this, cause.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
+            JOptionPane.showMessageDialog(this, e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
     }
 }

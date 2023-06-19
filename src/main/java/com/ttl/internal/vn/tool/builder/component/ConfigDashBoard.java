@@ -2,6 +2,7 @@ package com.ttl.internal.vn.tool.builder.component;
 
 import java.awt.Checkbox;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.event.ItemEvent;
 import java.io.File;
@@ -18,6 +19,7 @@ import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
+import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 
@@ -27,6 +29,7 @@ import org.slf4j.helpers.MessageFormatter;
 
 import com.ttl.internal.vn.tool.builder.cli.CliBuildTool;
 import com.ttl.internal.vn.tool.builder.cli.CliBuildTool.ArtifactInfo;
+import com.ttl.internal.vn.tool.builder.cli.CliBuildTool.DefaultCliGetArtifactInfo;
 import com.ttl.internal.vn.tool.builder.component.input.Button;
 import com.ttl.internal.vn.tool.builder.component.input.CheckBox;
 import com.ttl.internal.vn.tool.builder.component.input.DiffView;
@@ -41,11 +44,14 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
     private FileField artifactFolderFileField;
     private FileField artifactPomFileField;
     private FileField mavenXmlSettingsFileField;
+    private FileField javaHomeField;
+    private FileField patchFileField;
     private CheckBox buildConfigJarBtn;
     private CheckBox buildReleasePackageZipBtn;
     private CheckBox buildPatchBtn;
     private CheckBox updateSnapshotCheckbox;
     private CheckBox runMavenClean;
+    private CheckBox interactive;
     private Button buildBtn;
     private Button runCliBuildBtn;
     private transient Session session;
@@ -88,17 +94,25 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                 JFileChooser.FILES_ONLY, true, BoxLayout.Y_AXIS, xmlFileFileValidators);
         mavenXmlSettingsFileField
                 .setText(Paths.get(System.getProperty("user.home"), ".m2", "settings.xml").toAbsolutePath().toString());
+        this.patchFileField = new FileField("Git patch files", LABEL_WIDTH, INPUT_WIDTH, JFileChooser.FILES_ONLY,
+                true, BoxLayout.Y_AXIS, null);
+        this.javaHomeField = new FileField("Java home", LABEL_WIDTH, INPUT_WIDTH, JFileChooser.DIRECTORIES_ONLY,
+                true, BoxLayout.Y_AXIS, null);
         JPanel inputPanel = new JPanel();
         GroupLayout inputGroupLayout = new GroupLayout(inputPanel);
         inputPanel.setLayout(inputGroupLayout);
         inputGroupLayout.setHorizontalGroup(inputGroupLayout.createParallelGroup()
                 .addComponent(artifactFolderFileField)
                 .addComponent(artifactPomFileField)
-                .addComponent(mavenXmlSettingsFileField));
+                .addComponent(mavenXmlSettingsFileField)
+                .addComponent(patchFileField)
+                .addComponent(javaHomeField));
         inputGroupLayout.setVerticalGroup(inputGroupLayout.createSequentialGroup()
                 .addComponent(artifactFolderFileField)
                 .addComponent(artifactPomFileField)
-                .addComponent(mavenXmlSettingsFileField));
+                .addComponent(mavenXmlSettingsFileField)
+                .addComponent(patchFileField)
+                .addComponent(javaHomeField));
         inputPanel.setBackground(Color.GREEN);
 
         this.buildConfigJarBtn = new CheckBox(false, "Build config package?");
@@ -106,6 +120,7 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
         this.buildPatchBtn = new CheckBox(true, "Build patch");
         this.updateSnapshotCheckbox = new CheckBox(true, "Update maven snapshot");
         this.runMavenClean = new CheckBox(false, "Run maven clean goal");
+        this.interactive = new CheckBox(true, "Interactive");
 
         JPanel checkBoxPanel = new JPanel();
         GroupLayout checkBoxPanelGroupLayout = new GroupLayout(checkBoxPanel);
@@ -115,13 +130,15 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                 .addComponent(updateSnapshotCheckbox)
                 .addComponent(buildPatchBtn)
                 .addComponent(buildConfigJarBtn)
-                .addComponent(buildReleasePackageZipBtn));
+                .addComponent(buildReleasePackageZipBtn)
+                .addComponent(interactive));
         checkBoxPanelGroupLayout.setVerticalGroup(checkBoxPanelGroupLayout.createSequentialGroup()
                 .addComponent(runMavenClean)
                 .addComponent(updateSnapshotCheckbox)
                 .addComponent(buildPatchBtn)
                 .addComponent(buildConfigJarBtn)
-                .addComponent(buildReleasePackageZipBtn));
+                .addComponent(buildReleasePackageZipBtn)
+                .addComponent(interactive));
 
         this.buildBtn = new Button("Build");
         this.runCliBuildBtn = new Button("Continue");
@@ -146,8 +163,12 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
         this.getArtifactInfoTabbedPane = new JTabbedPane();
         getArtifactInfoTabbedPane.setVisible(false);
 
-        GroupLayout mainGroupLayout = new GroupLayout(this);
-        setLayout(mainGroupLayout);
+        JPanel mainPanel = new JPanel();
+
+        JScrollPane scrollPane = new JScrollPane();
+
+        GroupLayout mainGroupLayout = new GroupLayout(mainPanel);
+        mainPanel.setLayout(mainGroupLayout);
         mainGroupLayout.setAutoCreateContainerGaps(true);
         mainGroupLayout.setAutoCreateGaps(true);
         mainGroupLayout.setHorizontalGroup(mainGroupLayout.createParallelGroup()
@@ -162,6 +183,13 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                 .addComponent(diffView)
                 .addComponent(getArtifactInfoTabbedPane)
                 .addComponent(buttonPanel));
+
+        scrollPane.setViewportView(mainPanel);
+
+        GroupLayout layout = new GroupLayout(this);
+        setLayout(layout);
+        layout.setHorizontalGroup(layout.createSequentialGroup().addComponent(scrollPane));
+        layout.setVerticalGroup(layout.createParallelGroup().addComponent(scrollPane));
     }
 
     @Override
@@ -179,18 +207,23 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                 buildBtn.setEnabled(false);
                 artifactFolderFileField.setEnabled(false);
                 artifactPomFileField.setEnabled(false);
+                patchFileField.setEnabled(false);
                 mavenXmlSettingsFileField.setEnabled(false);
+                javaHomeField.setEnabled(false);
                 buildConfigJarBtn.setEnabled(false);
                 buildReleasePackageZipBtn.setEnabled(false);
                 buildPatchBtn.setEnabled(false);
                 updateSnapshotCheckbox.setEnabled(false);
+                interactive.setEnabled(false);
                 diffView.setVisible(true);
                 runMavenClean.setEnabled(false);
                 diffView.setLabel(MessageFormatter.format("Build diff {} -> {}",
                         session.getTargetCommit().getShortHash(), session.getBaseCommit().getShortHash()).getMessage());
                 diffView.setDiffEntries(session.getGitUtil().getDiff(session.getBaseCommit().getHash(),
                         session.getTargetCommit().getHash()));
-                ((JFrame) SwingUtilities.getRoot(this)).pack();
+                JFrame frame = ((JFrame) SwingUtilities.getRoot(this));
+                frame.pack();
+                frame.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
                 SwingGraphicUtil.run(() -> {
                     CliBuildTool command = null;
                     try {
@@ -211,8 +244,10 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                                 null,
                                 null,
                                 artifactPomFileField.getSelectedFile(),
+                                javaHomeField.getSelectedFile(),
+                                patchFileField.getSelectedFile(),
                                 mavenXmlSettingsFileField.getSelectedFile(),
-                                this::getArtifactInfo);
+                                interactive.isSelected() ? this::getArtifactInfo : DefaultCliGetArtifactInfo.getArtifactInfo(false));
                         command.startBuildEnvironment();
                         command.build(false);
                         JOptionPane.showMessageDialog(ConfigDashBoard.this, "Build success", "Success",
@@ -226,10 +261,14 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                         runCliBuildBtn.setVisible(false);
 
                         buildBtn.setEnabled(true);
+                        SwingGraphicUtil.updateUI(() -> frame.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)));
                         artifactFolderFileField.setEnabled(true);
                         artifactPomFileField.setEnabled(true);
+                        javaHomeField.setEnabled(true);
+                        patchFileField.setEnabled(true);
                         mavenXmlSettingsFileField.setEnabled(true);
                         updateSnapshotCheckbox.setEnabled(true);
+                        interactive.setEnabled(true);
                         buildConfigJarBtn.setEnabled(true);
                         buildReleasePackageZipBtn.setEnabled(true);
                         buildPatchBtn.setEnabled(true);

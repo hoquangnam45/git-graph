@@ -6,6 +6,8 @@ import java.awt.event.FocusListener;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.swing.BoxLayout;
 import javax.swing.GroupLayout;
@@ -61,7 +63,8 @@ public class FileField extends TextField {
                 if (result == JFileChooser.APPROVE_OPTION) {
                     // Get the selected file
                     File selectedFile = fileChooser.getSelectedFile();
-                    this.textField.setText(selectedFile.getAbsolutePath());
+                    String text = selectedFile.getAbsolutePath();
+                    this.textField.setText(text);
                 }
             });
         });

@@ -26,7 +26,6 @@ import org.eclipse.jgit.lib.TextProgressMonitor;
 
 import com.ttl.internal.vn.tool.builder.component.IDialog;
 import com.ttl.internal.vn.tool.builder.component.Session;
-import com.ttl.internal.vn.tool.builder.component.Session.CredentialEntry;
 import com.ttl.internal.vn.tool.builder.component.ValidationException;
 import com.ttl.internal.vn.tool.builder.component.fragment.SpinningCircle;
 import com.ttl.internal.vn.tool.builder.component.input.Button;
@@ -39,6 +38,7 @@ import com.ttl.internal.vn.tool.builder.component.input.TextValidator;
 import com.ttl.internal.vn.tool.builder.component.input.ValidatorError;
 import com.ttl.internal.vn.tool.builder.util.GitUtil;
 import com.ttl.internal.vn.tool.builder.util.SwingGraphicUtil;
+import com.ttl.internal.vn.tool.builder.util.GitUtil.CredentialEntry;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -244,9 +244,9 @@ public class GitCloneDialog extends JDialog implements IDialog {
                                 .scanCredential(repoField.getText());
                         CredentialEntry chosenCredentialEntry = null;
                         for (CredentialEntry credentialEntry : credentials) {
-                            String repo = Session.getRepo(credentialEntry.getUrl());
+                            String repo = GitUtil.getRepo(credentialEntry.getUrl());
                             if (chosenCredentialEntry == null || StringUtils.isNotBlank(repo)
-                                    && StringUtils.isBlank(Session.getRepo(chosenCredentialEntry.getUrl()))) {
+                                    && StringUtils.isBlank(GitUtil.getRepo(chosenCredentialEntry.getUrl()))) {
                                 chosenCredentialEntry = credentialEntry;
                             }
                         }
@@ -259,7 +259,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
                         password = passwordField.getText();
                     }
 
-                    Session.checkLogin(username, password, repoField.getText());
+                    GitUtil.checkLogin(username, password, repoField.getText());
 
                     if (StringUtils.isNotBlank(username)) {
                         Session.getInstance().setCredentialEntry(CredentialEntry.builder()

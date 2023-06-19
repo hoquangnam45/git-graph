@@ -24,6 +24,7 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Scanner;
 import java.util.Set;
+import java.util.Stack;
 import java.util.function.Function;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
@@ -68,9 +69,11 @@ public class CliBuildTool implements AutoCloseable {
     private final String repoURI;
     private final String username;
     private final String password;
-    private final String baseCommit;
-    private final String targetCommit;
+    private final String baseRef;
+    private final String targetRef;
     private final File projectPom;
+    private final File patchFile;
+    private final File javaHome;
     private final File m2SettingXml;
     private final boolean runMavenClean;
     private final boolean updateSnapshot;
@@ -97,8 +100,8 @@ public class CliBuildTool implements AutoCloseable {
         String username = System.getenv("GIT_USERNAME");
         String password = System.getenv("GIT_PASSWORD");
         String repo = System.getenv("GIT_REPO");
-        String baseCommit = "d957b6cced461684b2a0c9b57105970f5a76ca91";
-        String targetCommit = "ee4c4eeaa125be05902448ae3f2a7ea7f9aa2c30";
+        String baseRef = "d957b6cced461684b2a0c9b57105970f5a76ca91";
+        String targetRef = "ee4c4eeaa125be05902448ae3f2a7ea7f9aa2c30";
         File artifactFolder = new File("/tmp/buildArtifact");
         File projectPom = new File(System.getenv("PROJECT_POM"));
         File m2SettingXml = new File(System.getProperty("user.home") + "/.m2/settings_hk.xml");
@@ -109,8 +112,8 @@ public class CliBuildTool implements AutoCloseable {
                 projectFolder,
                 username,
                 password,
-                baseCommit,
-                targetCommit,
+                baseRef,
+                targetRef,
                 artifactFolder,
                 true,
                 true,
@@ -119,9 +122,11 @@ public class CliBuildTool implements AutoCloseable {
                 false,
                 null,
                 null,
+                null,
                 projectPom,
+                null,
                 m2SettingXml,
-                DefaultCliGetArtifactInfo::getArtifactInfo)) {
+                DefaultCliGetArtifactInfo.getArtifactInfo(true))) {
             //
             cliBuildTool.startBuildEnvironment();
             cliBuildTool.build(false);
@@ -134,8 +139,8 @@ public class CliBuildTool implements AutoCloseable {
             File projectFolder,
             String username,
             String password,
-            String baseCommit,
-            String targetCommit,
+            String baseRef,
+            String targetRef,
             File artifactFolder,
             boolean runMavenClean,  
             boolean updateSnapshot,
@@ -145,17 +150,21 @@ public class CliBuildTool implements AutoCloseable {
             String configPrefixes,
             String databaseChangePrefixes,
             File projectPom,
+            File javaHome,
+            File patchFile,
             File m2SettingXml,
             Function<List<String>, Map<String, ArtifactInfo>> getArtifactInfo) throws ModelBuildingException {
         //
+        this.javaHome = javaHome;
         this.runMavenClean = runMavenClean;
         this.clone = clone;
         this.repoURI = repoURI;
+        this.patchFile = patchFile;
         this.projectFolder = projectFolder;
         this.username = username;
         this.password = password;
-        this.baseCommit = baseCommit;
-        this.targetCommit = targetCommit;
+        this.baseRef = baseRef;
+        this.targetRef = targetRef;
         this.updateSnapshot = updateSnapshot;
         this.shouldBuildPatch = shouldBuildReleasePackage || shouldBuildPatch;
         this.artifactFolder = artifactFolder;
@@ -212,7 +221,11 @@ public class CliBuildTool implements AutoCloseable {
                 }
             }).orElseThrow(() -> new UnsupportedOperationException("should not happen with normal git repo"));
 
-            checkout(targetCommit);
+            checkout(targetRef);
+
+            if (patchFile != null) {
+                gitUtil.applyPatchFile(patchFile);
+            }
 
             // Copy the target pom.xml to the project folder
             File copyTargetPomFile = new File(projectFolder, projectPom.getName());
@@ -223,7 +236,7 @@ public class CliBuildTool implements AutoCloseable {
             Model mavenModelProject = buildMavenProjectModel(new File(projectFolder, projectPom.getName()));
 
             // Calculate the diff between commits
-            List<DiffEntry> diffEntries = gitUtil.getDiff(baseCommit, targetCommit);
+            List<DiffEntry> diffEntries = gitUtil.getDiff(baseRef, targetRef);
 
             // Calculate submodules, changed submodules
             List<String> modules = mavenModelProject.getModules();
@@ -325,9 +338,16 @@ public class CliBuildTool implements AutoCloseable {
             String className = getClassName(javaFile);
             List<Class<?>> clazzes = new ArrayList<>();
             Class<?> clazz = classLoader.loadClass(packageName + "." + className);
-            clazzes.add(clazz);
-            clazzes.addAll(Arrays.asList(clazz.getDeclaredClasses())); // NOTE: This could cause bug if
-                                                                       // getDeclaredClasses not getting all
+            
+            Stack<Class<?>> stack = new Stack<>();
+            stack.add(clazz);
+            
+            while(!stack.empty()) {
+                Class<?> c = stack.pop();
+                clazzes.add(c);
+                stack.addAll(List.of(c.getDeclaredClasses()));
+            }
+            
             List<File> classFiles = packageMap.compute(packageName, (k, v) -> v == null ? new ArrayList<>() : v);
             for (Class<?> c : clazzes) {
                 File classpath = new File(c.getProtectionDomain().getCodeSource().getLocation().getFile());
@@ -383,8 +403,10 @@ public class CliBuildTool implements AutoCloseable {
                 }
             }
 
-            // Create a jar
-            createJarFile(getTargetConfigJarFile(module, artifactInfo), buildConfigFolder);
+            if (buildConfigFolder.listFiles() != null && buildConfigFolder.listFiles().length > 0) {
+                // Create a jar
+                createJarFile(getTargetConfigJarFile(module, artifactInfo), buildConfigFolder);
+            }
         }
     }
 
@@ -406,10 +428,14 @@ public class CliBuildTool implements AutoCloseable {
             File libFolder = new File(buildReleasePackageFolder, "Lib");
 
             // Copy config changes
-            FileUtils.copyDirectory(buildConfigFolder, changedReleaseConfigFolder);
+            if (buildConfigFolder.listFiles() != null && buildConfigFolder.listFiles().length > 0) {
+                FileUtils.copyDirectory(buildConfigFolder, changedReleaseConfigFolder);
+            }
 
             // Copy patch to lib folder
-            FileUtils.copyFileToDirectory(patchJarFile, libFolder);
+            if (patchJarFile.isFile()) {
+                FileUtils.copyFileToDirectory(patchJarFile, libFolder);
+            }
 
             // Copy database changes
             List<String> dependOnModules = new ArrayList<>(dependentOnModuleMap.get(module));
@@ -445,8 +471,10 @@ public class CliBuildTool implements AutoCloseable {
             if (libFolder.listFiles() == null || libFolder.listFiles().length == 0) {
                 FileUtils.deleteDirectory(libFolder);
             }
-            // Create package release zip files
-            createZipFile(getTargetReleasePackageZipFile(module, artifactInfo), buildReleasePackageFolder);
+            if (buildReleasePackageFolder.listFiles() != null && buildReleasePackageFolder.listFiles().length > 0) {
+                // Create package release zip files
+                createZipFile(getTargetReleasePackageZipFile(module, artifactInfo), buildReleasePackageFolder);
+            }
         }
     }
 
@@ -505,8 +533,10 @@ public class CliBuildTool implements AutoCloseable {
                 }
             }
 
-            // Create a jar
-            createJarFile(getTargetPatchJarFile(module, artifactInfo), buildPatchFolder);
+            if (buildPatchFolder.listFiles() != null && buildPatchFolder.listFiles().length > 0) {
+                // Create a jar
+                createJarFile(getTargetPatchJarFile(module, artifactInfo), buildPatchFolder);
+            }
         }
     }
 
@@ -552,12 +582,13 @@ public class CliBuildTool implements AutoCloseable {
             if (runMavenClean) {
                 goals.add("clean");
             }
-            goals.addAll(List.of("compile", "dependency:build-classpath"));
+            goals.addAll(List.of("compile", "dependency:tree", "dependency:build-classpath"));
             request.setGoals(goals);
             request.setBatchMode(true);
             request.setOffline(false);
             request.setUserSettingsFile(m2SettingsXml);
             request.setUpdateSnapshots(updateSnapshot);
+            request.setJavaHome(javaHome);
             request.setMavenOpts("-Dmdep.outputFile=" + classpathFileName);
             InvocationResult result = invoker.execute(request);
             if (result.getExitCode() != 0) {
@@ -712,26 +743,43 @@ public class CliBuildTool implements AutoCloseable {
     }
 
     public static class DefaultCliGetArtifactInfo {
-        public static Map<String, ArtifactInfo> getArtifactInfo(List<String> modules) {
-            Map<String, ArtifactInfo> info;
-            try (Scanner in = new Scanner(System.in)) {
-                info = new HashMap<>();
-                for (String module : modules) {
-                    System.out.println("Artifact info: " + module);
-                    System.out.print("Patch jar file name[Patch.jar]: ");
-                    String patchJarFileName = in.nextLine();
-                    System.out.print("Config jar file name[Config.jar]: ");
-                    String configFileName = in.nextLine();
-                    System.out.print("Release package zip file name[ReleasePackage.zip]: ");
-                    String releasePackageZipFileName = in.nextLine();
-                    info.put(module, ArtifactInfo.builder()
-                            .configName(StringUtils.isBlank(configFileName) ? "Config.jar" : configFileName)
-                            .patchName(StringUtils.isBlank(patchJarFileName) ? "Patch.jar" : patchJarFileName)
-                            .releasePackageName(StringUtils.isBlank(releasePackageZipFileName) ? "ReleasePackage.zip" : releasePackageZipFileName)
-                            .build());
+        public static Function<List<String>, Map<String,ArtifactInfo>> getArtifactInfo(boolean interactive) {
+            return modules -> {
+                Map<String, ArtifactInfo> info;
+                if (interactive) {
+                    try (Scanner in = new Scanner(System.in)) {
+                        info = new HashMap<>();
+                        for (String module : modules) {
+                            System.out.println("Artifact info: " + module);
+                            boolean isServer = module.toLowerCase().contains("server");
+                            String defaultPatchName = isServer ? "SPatch.jar" : "Patch.jar";
+                            System.out.print("Patch jar file name[" + defaultPatchName + "]: ");
+                            String patchJarFileName = in.nextLine();
+                            System.out.print("Config jar file name[Config.jar]: ");
+                            String configFileName = in.nextLine();
+                            System.out.print("Release package zip file name[ReleasePackage.zip]: ");
+                            String releasePackageZipFileName = in.nextLine();
+
+                            info.put(module, ArtifactInfo.builder()
+                                    .configName(StringUtils.isBlank(configFileName) ? "Config.jar" : configFileName)
+                                    .patchName(StringUtils.isBlank(patchJarFileName) ?  defaultPatchName : patchJarFileName)
+                                    .releasePackageName(StringUtils.isBlank(releasePackageZipFileName) ? "ReleasePackage.zip" : releasePackageZipFileName)
+                                    .build());
+                        }
+                    }
+                    return info;
+                } else {
+                    return modules.stream().collect(Collectors.toMap(it -> it, it -> {
+                        String moduleName = it.toLowerCase();
+                        boolean isServer = moduleName.contains("server");
+                        return ArtifactInfo.builder()
+                                    .configName("Config.jar")
+                                    .patchName(isServer ? "SPatch.jar" : "Patch.jar")
+                                    .releasePackageName("ReleasePackage.zip")
+                                    .build();
+                    }));
                 }
-            }
-            return info;
+            };
         }
     }
 }

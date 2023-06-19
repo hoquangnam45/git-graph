@@ -42,25 +42,26 @@ pom for will be used to calculate the classpath, and build the artifact
     </modules>
 </project>%
 ```
-## Building the project to get executable jar (Optional)
+## Compile this tool to get executable jar (Optional)
 
 - Run `mvn clean compile assembly:single` to build the tool
 - Run `java -jar <path-to-jar> -ui` for UI mode or `java -jar <path-to-jar> --help` for what flags can be used to run in cli mode
 - Here is a example command to build your package using cli mode for already cloned project
 ```bash
-java -jar ReleaseBuilder-0.0.1-SNAPSHOT-jar-with-dependencies.jar -fetch -updateSnapshot -mavenClean --clonedDir /tmp/buildSrc --artifactFolder /tmp/buildArtifact -buildReleasePackage --gitUser <your-git-user> --gitPassword <your-git-password> --m2SettingsXml <custom-setting-xml-if-not-default> --baseCommit <starting-commit> --targetCommit <end-commit>
+java -jar ReleaseBuilder-0.0.1-SNAPSHOT-jar-with-dependencies.jar -fetch -updateSnapshot -mavenClean --clonedDir /tmp/buildSrc --artifactFolder /tmp/buildArtifact -buildReleasePackage --gitUser <your-git-user> --gitPassword <your-git-password> --m2SettingsXml <custom-setting-xml-if-not-default> --baseRef <startingRef> --targetRef <endRef>
 ```
 
 # Internal working of the tools
 
-When building the patch for the project, the tools will do the following
+When building the artifact for the project, the tools will do the following
 
 <ol>
   <li>Prepare your local repo for the build</li>
     <ol style="list-style-type: upper-alpha">
         <li>Save a reference to your current HEAD</li>
         <li>Stash any modifications (including untracked files and staging indexes)</li>
-        <li>Checkout target commit</li>
+        <li>Apply git patch file (if specify)</li>
+        <li>Checkout target ref</li>
     </ol>
   <li>Copy the company-specific project pom to the repo</li>
   <li>Use it to build the classfile and classpath. NOTE: if you want to ignore compilation errors of submodules. Refer to the <a href="#faq">FAQ</a></li>
@@ -79,7 +80,7 @@ By default, exceptions will be logged to /tmp/error.log, you can check the log t
 
 - Where is my local change after running the tool?
 
-It's in your git stash, you can view what it's save with `git stash show stash@{<your-stash-number, e.g: 0, 1,..>}`, to get your stash number you can retrace git operations with `git reflog`, you're expected to unstash any modification after the build
+It's in your git stash, you can view what it's save with `git stash show stash@{<your-stash-number, e.g: 0, 1,..>}`, to get your stash number you can retrace git operations with `git reflog`, you're expected to unstash any modification yourself after the build
 
 - The tools report that it encounter merge conflicts when trying to checkout diffrent commit
 
@@ -91,22 +92,7 @@ By default it will calculate the classpaths for your project using `mvn compile 
 
 - I just want it to ignore some compilation errors
 
-Add this section to your submodule pom.xml, create a new local commit, then build the artifact using the base commit and your new local commit as target commit
-
-```xml
-    <build>
-        <plugins>
-            <plugin>
-            <groupId>org.apache.maven.plugins</groupId>
-            <artifactId>maven-compiler-plugin</artifactId>
-            <version>3.11.0</version>
-            <configuration>
-                <failOnError>false</failOnError>
-            </configuration>
-        </plugin>
-    </plugins>
-  </build>
-```
+Create a git patch file with minimal modification for successful compilation, then specify it using `patchFile` flag (NOTE: Change in patch file will not be included in the final artifact)
 
 - I encounter ClassNotFoundException
 
@@ -118,4 +104,4 @@ For java files, if your change is outside the module specified in the project po
 
 - It got git index.lock error
 
-Because it crash while not clean up the lock yet so it's not able to interact with git until that lock is removed. Delete the file .git/index.lock then retry
+Because it crash while not clean up the lock yet so it's not able to interact with git further until that lock is removed. Delete the file .git/index.lock then retry
