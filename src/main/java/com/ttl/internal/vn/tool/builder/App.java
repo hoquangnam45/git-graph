@@ -103,12 +103,6 @@ public class App {
                                         .numberOfArgs(1)
                                         .build());
                         addOption(Option.builder()
-                                        .desc("Whether it will run maven clean")
-                                        .option("mavenClean")
-                                        .required(false)
-                                        .hasArg(false)
-                                        .build());  
-                        addOption(Option.builder()
                                         .desc("Whether it will update snapshot when running maven compile")
                                         .option("updateSnapshot")
                                         .required(false)
@@ -227,7 +221,6 @@ public class App {
                         String databaseChangePrefixes = commandLine.getOptionValue("databaseChangePrefixes");
                         String configPrefixes = commandLine.getOptionValue("configPrefixes");
                         boolean updateSnapshot = commandLine.hasOption("updateSnapshot");
-                        boolean mavenClean = commandLine.hasOption("mavenClean");
                         File patchFile = Optional.ofNullable(commandLine.getOptionValue("patchFile"))
                                 .map(File::new)
                                 .filter(File::isFile)
@@ -246,7 +239,6 @@ public class App {
                                         baseRef,
                                         targetRef,
                                         artifactFolder,
-                                        mavenClean,
                                         updateSnapshot,
                                         buildConfigJar,
                                         buildReleasePackage,

@@ -50,7 +50,6 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
     private CheckBox buildReleasePackageZipBtn;
     private CheckBox buildPatchBtn;
     private CheckBox updateSnapshotCheckbox;
-    private CheckBox runMavenClean;
     private CheckBox interactive;
     private Button buildBtn;
     private Button runCliBuildBtn;
@@ -119,21 +118,18 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
         this.buildReleasePackageZipBtn = new CheckBox(false, "Build release package?");
         this.buildPatchBtn = new CheckBox(true, "Build patch");
         this.updateSnapshotCheckbox = new CheckBox(true, "Update maven snapshot");
-        this.runMavenClean = new CheckBox(false, "Run maven clean goal");
         this.interactive = new CheckBox(true, "Interactive");
 
         JPanel checkBoxPanel = new JPanel();
         GroupLayout checkBoxPanelGroupLayout = new GroupLayout(checkBoxPanel);
         checkBoxPanel.setLayout(checkBoxPanelGroupLayout);
         checkBoxPanelGroupLayout.setHorizontalGroup(checkBoxPanelGroupLayout.createParallelGroup()
-                .addComponent(runMavenClean)
                 .addComponent(updateSnapshotCheckbox)
                 .addComponent(buildPatchBtn)
                 .addComponent(buildConfigJarBtn)
                 .addComponent(buildReleasePackageZipBtn)
                 .addComponent(interactive));
         checkBoxPanelGroupLayout.setVerticalGroup(checkBoxPanelGroupLayout.createSequentialGroup()
-                .addComponent(runMavenClean)
                 .addComponent(updateSnapshotCheckbox)
                 .addComponent(buildPatchBtn)
                 .addComponent(buildConfigJarBtn)
@@ -216,7 +212,6 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                 updateSnapshotCheckbox.setEnabled(false);
                 interactive.setEnabled(false);
                 diffView.setVisible(true);
-                runMavenClean.setEnabled(false);
                 diffView.setLabel(MessageFormatter.format("Build diff {} -> {}",
                         session.getTargetCommit().getShortHash(), session.getBaseCommit().getShortHash()).getMessage());
                 diffView.setDiffEntries(session.getGitUtil().getDiff(session.getBaseCommit().getHash(),
@@ -236,7 +231,6 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                                 session.getBaseCommit().getHash(),
                                 session.getTargetCommit().getHash(),
                                 artifactFolderFileField.getSelectedFile(),
-                                runMavenClean.isSelected(),
                                 updateSnapshotCheckbox.isSelected(),
                                 buildConfigJarBtn.isSelected(),
                                 buildReleasePackageZipBtn.isSelected(),
@@ -272,7 +266,6 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                         buildConfigJarBtn.setEnabled(true);
                         buildReleasePackageZipBtn.setEnabled(true);
                         buildPatchBtn.setEnabled(true);
-                        runMavenClean.setEnabled(true);
                         diffView.setVisible(false);
 
                         getArtifactInfoTabbedPane.setVisible(false);

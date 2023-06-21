@@ -48,7 +48,7 @@ pom for will be used to calculate the classpath, and build the artifact
 - Run `java -jar <path-to-jar> -ui` for UI mode or `java -jar <path-to-jar> --help` for what flags can be used to run in cli mode
 - Here is a example command to build your package using cli mode for already cloned project
 ```bash
-java -jar ReleaseBuilder-0.0.1-SNAPSHOT-jar-with-dependencies.jar -fetch -updateSnapshot -mavenClean --clonedDir /tmp/buildSrc --artifactFolder /tmp/buildArtifact -buildReleasePackage --gitUser <your-git-user> --gitPassword <your-git-password> --m2SettingsXml <custom-setting-xml-if-not-default> --baseRef <startingRef> --targetRef <endRef>
+java -jar ReleaseBuilder-0.0.1-SNAPSHOT-jar-with-dependencies.jar -fetch -updateSnapshot --clonedDir /tmp/buildSrc --artifactFolder /tmp/buildArtifact -buildReleasePackage --gitUser <your-git-user> --gitPassword <your-git-password> --m2SettingsXml <custom-setting-xml-if-not-default> --baseRef <startingRef> --targetRef <endRef>
 ```
 
 # Internal working of the tools
