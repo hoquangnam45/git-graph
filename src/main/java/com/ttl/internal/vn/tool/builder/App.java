@@ -187,9 +187,15 @@ public class App {
         };
 
         // TODO: Add progress bar
-        // TOO: Default to use pom.xml if not explicitly specified pom.xml
         // TODO: Add note.txt for delete change types
-        // TODO: Add fetch button -> implemented, test basically
+        // TODO: Hide fetch button
+        // TODO: Lock combobox from changing branch, build from chosen commit to working dir
+        // TODO: Hide checkout btn
+        // TODO: Recheck implementation when removing tab in UI result in nullpointerexception (NOTE: from 2 tab for getting artifact info from server and client to getting artifact info for client)
+        // TODO: Do not create jar file for server build
+        // TODO: Remove patch and config folder from artifact for release package build
+        // TODO: Popup for artifact info or switch to new panel
+        // TODO: Update README.MD
         public static void main(String[] args) throws ParseException, InvalidRemoteException, TransportException,
                         GitAPIException, IOException, ClassNotFoundException, MavenInvocationException,
                         ModelBuildingException,
