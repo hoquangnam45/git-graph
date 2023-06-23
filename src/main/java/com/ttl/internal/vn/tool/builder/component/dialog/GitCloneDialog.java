@@ -27,7 +27,6 @@ import org.eclipse.jgit.lib.TextProgressMonitor;
 import com.ttl.internal.vn.tool.builder.component.IDialog;
 import com.ttl.internal.vn.tool.builder.component.Session;
 import com.ttl.internal.vn.tool.builder.component.ValidationException;
-import com.ttl.internal.vn.tool.builder.component.fragment.SpinningCircle;
 import com.ttl.internal.vn.tool.builder.component.input.Button;
 import com.ttl.internal.vn.tool.builder.component.input.FileField;
 import com.ttl.internal.vn.tool.builder.component.input.InputGroup;
@@ -139,7 +138,6 @@ public class GitCloneDialog extends JDialog implements IDialog {
     private Button cloneBtn;
     private FileField cloneFileField;
     private ProgressBar progressBar;
-    private SpinningCircle progressCircle;
     private JFrame frame;
     private transient InputGroup inputGroup;
     private transient InputGroup inputGroup2;
