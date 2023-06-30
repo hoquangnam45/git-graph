@@ -27,6 +27,8 @@ import com.ttl.internal.vn.tool.builder.task.Task;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.TransportConfigCallback;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.TextProgressMonitor;
@@ -48,6 +50,7 @@ import com.ttl.internal.vn.tool.builder.util.GitUtil.CredentialEntry;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.eclipse.jgit.transport.Transport;
 
 import static java.util.function.Predicate.not;
 import static org.eclipse.jgit.lib.ProgressMonitor.UNKNOWN;
@@ -391,6 +394,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
         private final File targetFolder;
         private final GitCloneDialog dialog;
         private final Vector<GitCloneSubTask> subtasks;
+        private Transport transport;
 
         private CompletableFuture<Void> cloningWork;
         private GitCloneSubTask currentTask;
@@ -484,7 +488,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
         public boolean start() {
             this.cloningWork = SwingGraphicUtil.run(() -> {
                 try {
-                    GitUtil.cloneGitRepo(uri, targetFolder, username, password, new GitCloneProgressMonitor(this, new PrintWriter(System.out)));
+                    GitUtil.cloneGitRepo(uri, targetFolder, username, password, new GitCloneProgressMonitor(this, new PrintWriter(System.out)), transport -> this.transport = transport);
                     subscriber.onComplete();
                 } catch (GitAPIException e) {
                     throw new RuntimeException(e);
@@ -496,6 +500,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
         @Override
         public boolean stopExceptionally(Throwable e) {
             Optional.ofNullable(cloningWork).filter(not(CompletableFuture::isDone)).ifPresent(it -> it.cancel(true));
+            
             subtasks.forEach(subtask -> subtask.stopExceptionally(e));
             subscriber.onError(e);
             return true;

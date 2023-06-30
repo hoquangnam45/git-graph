@@ -21,6 +21,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.eclipse.jgit.api.CloneCommand;
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.ListBranchCommand.ListMode;
+import org.eclipse.jgit.api.TransportConfigCallback;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
@@ -224,7 +225,7 @@ public class GitUtil implements AutoCloseable {
 
     public static Git cloneGitRepo(String uri, File targetDir, String username, String password)
             throws GitAPIException {
-        return cloneGitRepo(uri, targetDir, username, password, new TextProgressMonitor(new PrintWriter(System.out)));
+        return cloneGitRepo(uri, targetDir, username, password, new TextProgressMonitor(new PrintWriter(System.out)), null);
     }
 
     public static String getRepo(String gitUrl) throws URISyntaxException {
@@ -285,10 +286,11 @@ public class GitUtil implements AutoCloseable {
     }
 
     public static Git cloneGitRepo(String uri, File targetDir, String username, String password,
-            ProgressMonitor progressMonitor)
+                                            ProgressMonitor progressMonitor, TransportConfigCallback transportConfigCallback)
             throws GitAPIException {
         CloneCommand command = Git.cloneRepository().setURI(uri)
                 .setProgressMonitor(progressMonitor)
+                .setTransportConfigCallback(transportConfigCallback)
                 .setDirectory(targetDir);
         if (StringUtils.isNotBlank(username) && StringUtils.isNotBlank(password)) {
             command = command.setCredentialsProvider(new UsernamePasswordCredentialsProvider(username, password));
