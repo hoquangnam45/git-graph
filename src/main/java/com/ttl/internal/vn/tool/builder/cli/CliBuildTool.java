@@ -1,16 +1,18 @@
 package com.ttl.internal.vn.tool.builder.cli;
 
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.FileReader;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PrintWriter;
 import java.io.Reader;
+import java.io.Writer;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
@@ -31,12 +33,15 @@ import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.builder.Diff;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.building.DefaultModelBuilderFactory;
 import org.apache.maven.model.building.DefaultModelBuildingRequest;
@@ -56,7 +61,6 @@ import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffEntry.ChangeType;
 import org.eclipse.jgit.diff.DiffEntry.Side;
 import org.eclipse.jgit.errors.RevisionSyntaxException;
-import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.eclipse.jgit.revwalk.RevCommit;
 
 import com.ttl.internal.vn.tool.builder.git.GitRef;
@@ -73,6 +77,7 @@ public class CliBuildTool implements AutoCloseable {
     private final String password;
     private final String baseRef;
     private final String targetRef;
+    private final String entryFilter;
     private final File projectPom;
     private final File patchFile;
     private final File javaHome;
@@ -83,6 +88,7 @@ public class CliBuildTool implements AutoCloseable {
     private final boolean shouldBuildPatch;
     private final List<String> configPrefixes;
     private final List<String> databaseChangePrefixes;
+    private final boolean useWorkingDirectory;
 
     private final File artifactFolder;
 
@@ -115,10 +121,12 @@ public class CliBuildTool implements AutoCloseable {
                 password,
                 baseRef,
                 targetRef,
+                null,
                 artifactFolder,
                 true,
                 false,
                 true,
+                false,
                 false,
                 null,
                 null,
@@ -133,6 +141,7 @@ public class CliBuildTool implements AutoCloseable {
         }
     }
 
+    // NOTE: When useWorkingDirectory is enabled, it will build from baseRef to working dir without doing any checkout or patching or copy project pom, only use this to build a test artifact
     public CliBuildTool(
             boolean clone,
             String repoURI,
@@ -141,11 +150,13 @@ public class CliBuildTool implements AutoCloseable {
             String password,
             String baseRef,
             String targetRef,
+            String entryFilter,
             File artifactFolder,
             boolean updateSnapshot,
             boolean shouldBuildConfigJar,
             boolean shouldBuildReleasePackage,
             boolean shouldBuildPatch,
+            boolean useWorkingDirectory,
             String configPrefixes,
             String databaseChangePrefixes,
             File projectPom,
@@ -154,6 +165,7 @@ public class CliBuildTool implements AutoCloseable {
             File m2SettingXml,
             Function<List<String>, Map<String, ArtifactInfo>> getArtifactInfo) throws ModelBuildingException {
         //
+        this.entryFilter = entryFilter;
         this.javaHome = javaHome;
         this.clone = clone;
         this.repoURI = repoURI;
@@ -171,6 +183,7 @@ public class CliBuildTool implements AutoCloseable {
         this.getArtifactInfo = getArtifactInfo;
         this.projectPom = Optional.ofNullable(projectPom).orElse(new File(this.projectFolder, "pom.xml"));
         this.m2SettingXml = m2SettingXml;
+        this.useWorkingDirectory = useWorkingDirectory;
         this.configPrefixes = Optional.ofNullable(configPrefixes)
                 .map(it -> it.split(","))
                 .map(Arrays::asList)
@@ -199,6 +212,16 @@ public class CliBuildTool implements AutoCloseable {
         }
     }
 
+    public List<DiffEntry> getDiff() throws IOException {
+        List<DiffEntry> diffEntries;
+        if (useWorkingDirectory) {
+            diffEntries = gitUtil.getDiffWd(baseRef);
+        } else {
+            diffEntries = gitUtil.getDiff(baseRef, targetRef);
+        }
+        return Optional.ofNullable(entryFilter).map(Pattern::compile).map(pattern -> diffEntries.stream().filter(entry -> !pattern.matcher(entry.toString()).find()).collect(Collectors.toList())).orElse(List.of());
+    }
+    
     public void build(boolean fetch) throws IOException, GitAPIException, MavenInvocationException,
             ClassNotFoundException, ModelBuildingException {
         try {
@@ -219,25 +242,38 @@ public class CliBuildTool implements AutoCloseable {
                 }
             }).orElseThrow(() -> new UnsupportedOperationException("should not happen with normal git repo"));
 
-            checkout(targetRef);
+            // NOTE: If useWorkingDirectory is enabled it should not perform any checkout or apply git patch
+            if (!useWorkingDirectory) {
+                checkout(targetRef);
+                if (patchFile != null) {
+                    gitUtil.applyPatchFile(patchFile);
+                }
 
-            if (patchFile != null) {
-                gitUtil.applyPatchFile(patchFile);
-            }
-
-            // Copy the target pom.xml to the project folder
-            File copyTargetPomFile = new File(projectFolder, projectPom.getName());
-            if (!copyTargetPomFile.equals(projectPom)) {
-                FileUtils.copyFileToDirectory(projectPom, projectFolder);
+                // Copy the target pom.xml to the project folder
+                File copyTargetPomFile = new File(projectFolder, projectPom.getName());
+                if (!copyTargetPomFile.equals(projectPom)) {
+                    FileUtils.copyFileToDirectory(projectPom, projectFolder);
+                }
             }
 
             Model mavenModelProject = buildMavenProjectModel(new File(projectFolder, projectPom.getName()));
 
             // Calculate the diff between commits
-            List<DiffEntry> diffEntries = gitUtil.getDiff(baseRef, targetRef);
-
+            List<DiffEntry> diffEntries = getDiff();
+                    
             // Calculate submodules, changed submodules
             List<String> modules = mavenModelProject.getModules();
+            Map<String, List<String>> moduleToDeletedEntriesMap = diffEntries.stream()
+                    .filter(entry -> entry.getChangeType() == ChangeType.DELETE)
+                    .map(entry -> entry.getPath(Side.OLD))
+                    .collect(Collectors.toMap(it -> Path.of(it).getName(0).toString(), it -> {
+                        List<String> deletedEntries = new ArrayList<>();
+                        deletedEntries.add(it);
+                        return deletedEntries;
+                    }, (acc, val) -> {
+                        acc.addAll(val);
+                        return acc;
+                    }));
             Map<String, List<File>> changedModuleFileMap = diffEntries.stream()
                     .filter(entry -> entry.getChangeType() != ChangeType.DELETE)
                     .map(entry -> new File(projectFolder, entry.getPath(Side.NEW)))
@@ -259,8 +295,8 @@ public class CliBuildTool implements AutoCloseable {
                     .collect(Collectors.toMap(module -> module, module -> Paths
                             .get(moduleToModuleFolderMap.get(module).getAbsolutePath(), "target", "classes").toFile()));
 
-            // Calculate depedent module map: module -> depend on modules
-            Map<String, List<String>> depedendOnModuleMap = modules.stream()
+            // Calculate depedent module map: module -> depend on modules (not include self)
+            Map<String, List<String>> depedendOnOtherModuleMap = modules.stream()
                     .collect(Collectors.toMap(module -> module, module -> {
                         Set<File> moduleClasspaths = classpathMap.get(module).stream().map(File::new)
                                 .collect(Collectors.toSet());
@@ -268,13 +304,21 @@ public class CliBuildTool implements AutoCloseable {
                                 .filter(it -> moduleClasspaths.contains(it.getValue())).map(Entry::getKey)
                                 .collect(Collectors.toList());
                     }));
+            // Calculate depedent module map: module -> depend on modules (including self)
+            Map<String, List<String>> depedendOnModuleMap = depedendOnOtherModuleMap.entrySet().stream()
+                    .collect(Collectors.toMap(Entry::getKey, it -> Stream.of(List.of(it.getKey()), it.getValue()).flatMap(List::stream).collect(Collectors.toList())));
 
             // Calculate free modules
-            Set<String> aggregratedDependOnModules = depedendOnModuleMap.entrySet().stream()
+            Set<String> aggregratedDependOnModules = depedendOnOtherModuleMap.entrySet().stream()
                     .flatMap(it -> it.getValue().stream()).collect(Collectors.toSet());
             List<String> freeModules = modules.stream().filter(it -> !aggregratedDependOnModules.contains(it))
                     .collect(Collectors.toList());
 
+            // Filter out only free modules that have submodules that have deleted files
+            List<String> freeDeletedModules = freeModules.stream().filter(module -> {
+                List<String> dependOnModules = depedendOnModuleMap.get(module);
+                return dependOnModules.stream().anyMatch(moduleToDeletedEntriesMap::containsKey);
+            }).collect(Collectors.toList());
             // Filter out only free modules that have submodules that changed
             List<String> freeChangedModules = freeModules.stream().filter(module -> {
                 List<String> dependOnModules = depedendOnModuleMap.get(module);
@@ -284,6 +328,11 @@ public class CliBuildTool implements AutoCloseable {
             // Get artifact info for each free module
             Map<String, ArtifactInfo> artifactInfoModuleMap = getArtifactInfo.apply(freeChangedModules);
 
+            // NOTE: Write deleted entry note.txt
+            if (moduleToDeletedEntriesMap.size() > 0) {
+                noteDeletedFiles(freeDeletedModules, depedendOnModuleMap, moduleToDeletedEntriesMap);
+            }
+            
             if (shouldBuildPatch) {
                 buildPatch(freeChangedModules, depedendOnModuleMap, changedModuleFileMap, classpathMap,
                         artifactInfoModuleMap,
@@ -291,7 +340,7 @@ public class CliBuildTool implements AutoCloseable {
             }
 
             if (shouldBuildConfigJar) {
-                buildConfigJar(freeChangedModules, depedendOnModuleMap, changedModuleFileMap, artifactInfoModuleMap,
+                buildConfig(freeChangedModules, depedendOnModuleMap, changedModuleFileMap, artifactInfoModuleMap,
                         configPrefixes);
             }
 
@@ -302,6 +351,29 @@ public class CliBuildTool implements AutoCloseable {
             }
         } finally {
             cleanupBuildEnvironment();
+        }
+    }
+
+    private void noteDeletedFiles(List<String> freeModuleContainDeletedFiles, Map<String, List<String>> dependOnModuleMap, Map<String, List<String>> moduleToDeletedFilesMap) throws IOException {
+        for (String module: freeModuleContainDeletedFiles) {
+            File deletedNoteFile = getDeletedNoteFile(module);
+            if (!deletedNoteFile.exists()) {
+                deletedNoteFile.getParentFile().mkdirs();
+                deletedNoteFile.createNewFile();
+            }
+            try (
+                    Writer writer = new FileWriter(deletedNoteFile);
+                    BufferedWriter bw = new BufferedWriter(writer);
+            ) {
+                List<String> dependOnModules = dependOnModuleMap.get(module);
+                for (String dependOnModule : dependOnModules) {
+                    List<String> deletedEntries = moduleToDeletedFilesMap.getOrDefault(dependOnModule, List.of());
+                    for (String entry: deletedEntries) {
+                        bw.write(entry);
+                        bw.newLine();
+                    }
+                }
+            }
         }
     }
 
@@ -412,17 +484,16 @@ public class CliBuildTool implements AutoCloseable {
                         (val1, val2) -> Stream.of(val1, val2).flatMap(List::stream).collect(Collectors.toList())));
     }
 
-    private void buildConfigJar(List<String> freeModules, Map<String, List<String>> dependentOnModuleMap,
-            Map<String, List<File>> changedModuleFileMap, Map<String, ArtifactInfo> artifactInfoModuleMap,
-            List<String> configPrefixes)
+    private void buildConfig(List<String> freeModules, Map<String, List<String>> dependentOnModuleMap,
+                             Map<String, List<File>> changedModuleFileMap, Map<String, ArtifactInfo> artifactInfoModuleMap,
+                             List<String> configPrefixes)
             throws IOException {
         for (String module : freeModules) {
             File buildConfigFolder = getBuildConfigFolder(module);
             buildConfigFolder.mkdirs();
 
             ArtifactInfo artifactInfo = artifactInfoModuleMap.get(module);
-            List<String> dependOnModules = new ArrayList<>(dependentOnModuleMap.get(module));
-            dependOnModules.add(module);
+            List<String> dependOnModules = dependentOnModuleMap.get(module);
 
             Map<String, List<File>> changedConfigFilesModuleMap = dependOnModules.stream()
                     .collect(Collectors.toMap(dependOnModule -> dependOnModule, dependOnModule -> {
@@ -452,8 +523,13 @@ public class CliBuildTool implements AutoCloseable {
             }
 
             if (buildConfigFolder.listFiles() != null && buildConfigFolder.listFiles().length > 0) {
-                // Create a jar
-                createJarFile(getTargetConfigJarFile(module, artifactInfo), buildConfigFolder);
+                if (artifactInfoModuleMap.get(module).isCompress()) {
+                    // Create a jar
+                    createJarFile(getTargetConfigJarFile(module, artifactInfo), buildConfigFolder, null);
+                } else {
+                    // NOTE: I shouldn't do this, but I'm too lazy anyway
+                    FileUtils.copyDirectory(buildConfigFolder, getTargetConfigJarFile(module, artifactInfo).getParentFile());
+                }
             }
         }
     }
@@ -467,27 +543,27 @@ public class CliBuildTool implements AutoCloseable {
             File buildReleasePackageFolder = getBuildReleaseFolder(module);
             buildReleasePackageFolder.mkdirs();
 
-            File buildConfigFolder = getBuildConfigFolder(module);
             ArtifactInfo artifactInfo = artifactInfoModuleMap.get(module);
-            File patchJarFile = getTargetPatchJarFile(module, artifactInfo);
+            File targetPatchJarFile = getTargetPatchJarFile(module, artifactInfo);
 
             File changedReleaseConfigFolder = new File(buildReleasePackageFolder, "config");
             File changedDatabaseFolder = new File(buildReleasePackageFolder, "DatabaseChange");
             File libFolder = new File(buildReleasePackageFolder, "Lib");
 
+            File targetConfigJarFolder = getTargetConfigJarFile(module, artifactInfo).getParentFile();
+
             // Copy config changes
-            if (buildConfigFolder.listFiles() != null && buildConfigFolder.listFiles().length > 0) {
-                FileUtils.copyDirectory(buildConfigFolder, changedReleaseConfigFolder);
+            if (targetConfigJarFolder.listFiles() != null && targetConfigJarFolder.listFiles().length > 0) {
+                FileUtils.copyDirectory(targetConfigJarFolder, changedReleaseConfigFolder);
             }
 
             // Copy patch to lib folder
-            if (patchJarFile.isFile()) {
-                FileUtils.copyFileToDirectory(patchJarFile, libFolder);
+            if (targetPatchJarFile.isFile()) {
+                FileUtils.copyFileToDirectory(targetPatchJarFile, libFolder);
             }
 
             // Copy database changes
-            List<String> dependOnModules = new ArrayList<>(dependentOnModuleMap.get(module));
-            dependOnModules.add(module);
+            List<String> dependOnModules = dependentOnModuleMap.get(module);
             Map<String, List<File>> changedDatabaseModuleMap = dependOnModules.stream()
                     .collect(Collectors.toMap(dependOnModule -> dependOnModule, dependOnModule -> {
                         File moduleFolder = new File(projectFolder, dependOnModule);
@@ -510,14 +586,11 @@ public class CliBuildTool implements AutoCloseable {
                 }
             }
 
-            if (changedDatabaseFolder.listFiles() == null || changedDatabaseFolder.listFiles().length == 0) {
-                FileUtils.deleteDirectory(changedDatabaseFolder);
+            if (targetConfigJarFolder.exists()) {
+                FileUtils.deleteDirectory(targetConfigJarFolder);
             }
-            if (changedReleaseConfigFolder.listFiles() == null || changedReleaseConfigFolder.listFiles().length == 0) {
-                FileUtils.deleteDirectory(changedReleaseConfigFolder);
-            }
-            if (libFolder.listFiles() == null || libFolder.listFiles().length == 0) {
-                FileUtils.deleteDirectory(libFolder);
+            if (targetPatchJarFile.getParentFile().exists()) {
+                FileUtils.deleteDirectory(targetPatchJarFile.getParentFile());
             }
             if (buildReleasePackageFolder.listFiles() != null && buildReleasePackageFolder.listFiles().length > 0) {
                 // Create package release zip files
@@ -564,8 +637,7 @@ public class CliBuildTool implements AutoCloseable {
                 urls.add(new File(classpath).toURI().toURL());
             }
 
-            List<String> dependOnModules = new ArrayList<>(dependentOnModuleMap.get(module));
-            dependOnModules.add(module);
+            List<String> dependOnModules = dependentOnModuleMap.get(module);
 
             try (URLClassLoader loader = new URLClassLoader(urls.toArray(new URL[] {}))) {
                 for (String dependOnModule : dependOnModules) {
@@ -583,11 +655,17 @@ public class CliBuildTool implements AutoCloseable {
 
             if (buildPatchFolder.listFiles() != null && buildPatchFolder.listFiles().length > 0) {
                 // Create a jar
-                createJarFile(getTargetPatchJarFile(module, artifactInfo), buildPatchFolder);
+                Manifest manifest = new Manifest();
+                manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+                createJarFile(getTargetPatchJarFile(module, artifactInfo), buildPatchFolder, manifest);
             }
         }
     }
 
+    private File getDeletedNoteFile(String module) {
+        return Paths.get(targetFolder.getAbsolutePath(), module, "notes", "deleted_changes").toFile();
+    }
+    
     private File getTargetPatchJarFile(String module, ArtifactInfo info) {
         return Paths.get(targetFolder.getAbsolutePath(), module, "patch", info.getPatchName()).toFile();
     }
@@ -663,16 +741,14 @@ public class CliBuildTool implements AutoCloseable {
 
     }
 
-    public static void createJarFile(File jarFile, File sourceFolder) throws IOException {
-        Manifest manifest = new Manifest();
-        manifest.getMainAttributes().put(Attributes.Name.MANIFEST_VERSION, "1.0");
+    public static void createJarFile(File jarFile, File sourceFolder, Manifest manifest) throws IOException {
         if (!jarFile.exists()) {
             jarFile.getParentFile().mkdirs();
             jarFile.createNewFile();
         }
         try (
                 OutputStream os = new FileOutputStream(jarFile);
-                JarOutputStream jos = new JarOutputStream(os, manifest)) {
+                JarOutputStream jos = manifest == null ? new JarOutputStream(os) : new JarOutputStream(os, manifest)) {
             for (File f : sourceFolder.listFiles()) {
                 addToJarFile(jos, sourceFolder, relativize(f, sourceFolder));
             }
@@ -768,8 +844,10 @@ public class CliBuildTool implements AutoCloseable {
     }
 
     public void cleanupBuildEnvironment() throws GitAPIException, RevisionSyntaxException, IOException {
-        cleanupProjectPom();
-        restoreGitWorkingDirectory();
+        if (!useWorkingDirectory) {
+            cleanupProjectPom();
+            restoreGitWorkingDirectory();
+        }
     }
 
     @Override
@@ -785,6 +863,7 @@ public class CliBuildTool implements AutoCloseable {
         private String configName;
         private String patchName;
         private String releasePackageName;
+        private boolean compress; // NOTE: Only used by certain type of build
     }
 
     public static class DefaultCliGetArtifactInfo {
@@ -809,6 +888,7 @@ public class CliBuildTool implements AutoCloseable {
                                     .configName(StringUtils.isBlank(configFileName) ? "Config.jar" : configFileName)
                                     .patchName(StringUtils.isBlank(patchJarFileName) ?  defaultPatchName : patchJarFileName)
                                     .releasePackageName(StringUtils.isBlank(releasePackageZipFileName) ? "ReleasePackage.zip" : releasePackageZipFileName)
+                                    .compress(!isServer)
                                     .build());
                         }
                     }
@@ -821,6 +901,7 @@ public class CliBuildTool implements AutoCloseable {
                                     .configName("Config.jar")
                                     .patchName(isServer ? "SPatch.jar" : "Patch.jar")
                                     .releasePackageName("ReleasePackage.zip")
+                                    .compress(!isServer)
                                     .build();
                     }));
                 }

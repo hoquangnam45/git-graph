@@ -23,7 +23,9 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.Map.Entry;
+import java.util.concurrent.Flow;
 import java.util.concurrent.locks.ReentrantLock;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -53,6 +55,7 @@ import lombok.Synchronized;
 @Getter(onMethod_={@Synchronized}) 
 @Setter(onMethod_={@Synchronized}) 
 public class Session implements AutoCloseable {
+    public static final String USE_WORKING_DIRECTORY_CHANGED = "USE_WORKING_DIRECTORY_CHANGED";
     private static volatile Session INSTANCE = new Session();
     private final Object $lock; 
     private String gitUsername;
@@ -66,6 +69,9 @@ public class Session implements AutoCloseable {
     private Set<CredentialEntry> inMemoryCredentialEntries;
     private GitCommit baseCommit;
     private GitCommit targetCommit;
+    private Boolean useWorkingDirectory;
+    
+    private Map<String, List<Consumer<?>>> listeners = new HashMap<>();
     
     public Session() {
         $lock = new ReentrantLock();
@@ -74,7 +80,16 @@ public class Session implements AutoCloseable {
         this.xdgGitCredentials = Paths.get(homeFolder.getAbsolutePath(), ".git", "credentails").toFile();
         this.inMemoryCredentialEntries = new HashSet<>();
     }
-
+    
+    public boolean getUseWorkingDirectory() {
+        return Optional.ofNullable(useWorkingDirectory).orElse(true);
+    }
+    
+    public void setUseWorkingDirectory(boolean useWorkingDirectory) {
+        this.useWorkingDirectory = useWorkingDirectory;
+        fireEvent(USE_WORKING_DIRECTORY_CHANGED, useWorkingDirectory);
+    }
+    
     public void setGitUtil(GitUtil gitUtil) {
         if (this.gitUtil != null) {
             throw new UnsupportedOperationException("Create new session for new git repo, this session is already binded to a repo");
@@ -171,5 +186,14 @@ public class Session implements AutoCloseable {
     @Override
     public void close() throws Exception {
         gitUtil.close();
+    }
+
+    public <T> void addListener(String event, Consumer<T> listener) {
+        listeners.computeIfAbsent(event, s -> new ArrayList<>()).add(listener);
+    }
+    
+    @SuppressWarnings("unchecked")
+    public <T> void fireEvent(String event, T eventContext) {
+        listeners.getOrDefault(event, new ArrayList<>()).forEach(l -> ((Consumer<T>) l).accept(eventContext));
     }
 }

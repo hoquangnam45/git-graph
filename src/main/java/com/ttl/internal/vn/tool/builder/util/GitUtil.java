@@ -31,6 +31,7 @@ import org.eclipse.jgit.errors.RevisionSyntaxException;
 import org.eclipse.jgit.errors.TransportException;
 import org.eclipse.jgit.lib.AnyObjectId;
 import org.eclipse.jgit.lib.ObjectId;
+import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.PersonIdent;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.Ref;
@@ -43,6 +44,9 @@ import org.eclipse.jgit.transport.Transport;
 import org.eclipse.jgit.transport.TransportHttp;
 import org.eclipse.jgit.transport.URIish;
 import org.eclipse.jgit.transport.UsernamePasswordCredentialsProvider;
+import org.eclipse.jgit.treewalk.AbstractTreeIterator;
+import org.eclipse.jgit.treewalk.CanonicalTreeParser;
+import org.eclipse.jgit.treewalk.FileTreeIterator;
 import org.eclipse.jgit.util.io.DisabledOutputStream;
 
 import com.ttl.internal.vn.tool.builder.git.GitCommit;
@@ -150,10 +154,6 @@ public class GitUtil implements AutoCloseable {
         fetch(username, password, new TextProgressMonitor(new PrintWriter(System.out)));
     }
 
-    public GitWalk produceWalker(List<String> selectedBranches) throws IOException {
-        return new GitWalk(this, selectedBranches);
-    }
-
     public List<DiffEntry> getDiff(String baseRef, String targetRef) throws IOException {
         try (
                 var diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
@@ -163,6 +163,21 @@ public class GitUtil implements AutoCloseable {
             var baseCommit = revWalk.parseCommit(resolve(baseRef));
             var targetCommit = revWalk.parseCommit(resolve(targetRef));
             return diffFormatter.scan(baseCommit, targetCommit);
+        }
+    }
+    
+    public List<DiffEntry> getDiffWd(String baseRef) throws IOException {
+        try (
+                var diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
+                var revWalk = new RevWalk(git.getRepository());
+                ObjectReader reader = git.getRepository().newObjectReader()) {
+            AbstractTreeIterator newTree = new FileTreeIterator(git.getRepository());
+            diffFormatter.setRepository(git.getRepository());
+            diffFormatter.setDetectRenames(true);
+            var baseCommit = revWalk.parseCommit(resolve(baseRef));
+            CanonicalTreeParser oldTree = new CanonicalTreeParser();
+            oldTree.reset(reader, baseCommit.getTree());
+            return diffFormatter.scan(oldTree, newTree);
         }
     }
 

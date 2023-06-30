@@ -1,8 +1,8 @@
 package com.ttl.internal.vn.tool.builder.component;
 
 import java.awt.Dimension;
+import java.awt.event.ItemEvent;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.util.List;
 import java.util.Vector;
 import java.util.stream.Collectors;
@@ -15,10 +15,11 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.WindowConstants;
 
+import com.ttl.internal.vn.tool.builder.component.input.CheckBox;
+import com.ttl.internal.vn.tool.builder.git.GitWalk;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jgit.api.errors.GitAPIException;
-import org.eclipse.jgit.lib.TextProgressMonitor;
 import org.slf4j.helpers.MessageFormatter;
 
 import com.ttl.internal.vn.tool.builder.component.input.Button;
@@ -32,6 +33,8 @@ import com.ttl.internal.vn.tool.builder.util.GitUtil;
 import com.ttl.internal.vn.tool.builder.util.SwingGraphicUtil;
 
 public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
+    public static final String BRANCH_LABEL = "Branch";
+    private static final String COMMIT_LABEL = "Working directory commit";
     private final transient Logger logger = LogManager.getLogger(BuildToolDashBoard.class);
     private final transient GitUtil gitUtil;
     private GitTreeView gitTreeView;
@@ -42,8 +45,10 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
     private ConfigDashBoard dashBoard;
     private Button checkOutButton;
     private Button fetchButton;
+    private Button refreshButton;
     private JLabel currentCommitLabel;
     private transient Session session;
+    private CheckBox useWorkingDirectoryCheckbox;
 
     public BuildToolDashBoard(Session session) throws GitAPIException, IOException {
         super();
@@ -53,24 +58,45 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
         registerListeners();
     }
 
+    private String getWorkingDirectoryCommitLabel() throws IOException {
+        return MessageFormatter.format("Commit {}", gitUtil.getHeadRef().getShortCommitHash()).getMessage();
+    }
+    
+    private void refreshGitRelatedUI() throws IOException {
+        if (!session.getUseWorkingDirectory()) {
+            gitTreeView.setGitBranch(getSelectedBranches());
+            gitRefsComboBox.setLabel(BRANCH_LABEL);
+        } else {
+            gitTreeView.setGitCommits(List.of(gitUtil.getHeadRef().getCommitHash()));
+            gitRefsComboBox.setEnabled(false);
+            gitRefsComboBox.setEditable(true);
+            gitRefsComboBox.setSelectedItem(gitUtil.getHeadRef().getCommitHash());
+            gitRefsComboBox.setLabel(COMMIT_LABEL);
+        }
+        gitTreeView.resetGraph();
+    }
+    
     @Override
     public void initUI() throws GitAPIException, IOException {
         setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
         setTitle("Build tool dashboard");
+        
+        this.currentCommitLabel = new JLabel(getWorkingDirectoryCommitLabel());
 
-        this.currentCommitLabel = new JLabel(MessageFormatter.format("Commit {}", gitUtil.getHeadRef().getShortCommitHash()).getMessage());
-
+        this.useWorkingDirectoryCheckbox = new CheckBox(session.getUseWorkingDirectory(), "Use working directory");
+                
         List<GitRef> branchRefs = gitUtil.getBranchRefs(false).stream().map(GitRef::new).filter(it -> !it.isHead()).collect(Collectors.toList());
         this.branches = branchRefs.stream().map(GitRef::toString).collect(Collectors.toList());
-        Vector<String> branchOptions = branches.stream().collect(Collectors.toCollection(Vector::new));
+        Vector<String> branchOptions = new Vector<>(branches);
         branchOptions.add(0, "All branches");
-        gitRefsComboBox = new ComboBox<>("Branches", branchOptions, null);
+        gitRefsComboBox = new ComboBox<>("", branchOptions, null);
         gitRefsComboBox.setPreferredSize(new Dimension(300, 50));
 
         this.searchCommitTextField = new TextField("Search commit", 60, 120, true, BoxLayout.Y_AXIS, List.of());
 
-        this.gitTreeView = new GitTreeView(gitUtil.produceWalker(getSelectedBranchs()));
-
+        this.gitTreeView = new GitTreeView(new GitWalk(gitUtil));
+        refreshGitRelatedUI();
+        
         this.diffView = new DiffView();
         diffView.setVisible(false);
 
@@ -82,10 +108,13 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
         this.checkOutButton = new Button("Checkout commit");
         checkOutButton.setVisible(false);
         this.fetchButton = new Button("Fetch");
+        this.refreshButton = new Button("Refresh");
         btnGroupLayout.setHorizontalGroup(btnGroupLayout.createSequentialGroup()
+            .addComponent(refreshButton)
             .addComponent(fetchButton)
             .addComponent(checkOutButton));
         btnGroupLayout.setVerticalGroup(btnGroupLayout.createParallelGroup()
+            .addComponent(refreshButton)
             .addComponent(fetchButton)
             .addComponent(checkOutButton));
 
@@ -100,6 +129,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
                 .addComponent(currentCommitLabel, GroupLayout.Alignment.TRAILING)
                 .addComponent(gitRefsComboBox)
                 .addComponent(searchCommitTextField)
+                .addComponent(useWorkingDirectoryCheckbox)
                 .addComponent(gitTreeView)
                 .addComponent(diffView)
                 .addComponent(btnPanel)
@@ -108,6 +138,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
                 .addComponent(currentCommitLabel)
                 .addComponent(gitRefsComboBox)
                 .addComponent(searchCommitTextField)
+                .addComponent(useWorkingDirectoryCheckbox)
                 .addComponent(gitTreeView)
                 .addComponent(diffView)
                 .addComponent(btnPanel)
@@ -124,11 +155,15 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
                 .addComponent(gitViewPanel)
                 .addComponent(dashBoard));
 
+        if (session.getUseWorkingDirectory()) {
+            fetchButton.setVisible(false);
+        }
+        
         add(container);
         pack();
     }
 
-    private List<String> getSelectedBranchs() {
+    private List<String> getSelectedBranches() {
         if (gitRefsComboBox.getSelectedIndex() > 0) {
             return List.of(gitRefsComboBox.getSelectedItem());
         }
@@ -144,9 +179,13 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
     public void registerListeners() {
         gitRefsComboBox.addActionListener(e -> {
             SwingGraphicUtil.updateUI(() -> {
-                List<String> selectedBranches = getSelectedBranchs();
                 try {
-                    gitTreeView.setGitBranch(selectedBranches);
+                    if (!session.getUseWorkingDirectory()) {
+                        List<String> selectedBranches = getSelectedBranches();
+                        gitTreeView.setGitBranch(selectedBranches);
+                    } else {
+                        gitTreeView.setGitCommits(List.of(gitUtil.getHeadRef().getCommitHash()));
+                    }
                 } catch (IOException e1) {
                     handleException(e1);
                 }
@@ -166,28 +205,46 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
                     session.setTargetCommit(null);
                     checkOutButton.setVisible(false);
                     diffView.setVisible(false);
-
                 } else if (selectedRows.length == 1) {
-                    SwingGraphicUtil.supply(() -> {
-                        try {
-                            diffView.setVisible(true);
-                            GitCommit targetCommit = gitTreeView.getCommit(selectedRows[0]);
-                            // NOTE: Perform diff against first parent
-                            // Justification here https://github.com/libgit2/pygit2/issues/907
-                            GitCommit firstParentBaseCommit = gitUtil.fromHash(targetCommit.getParentHashs().get(0));
-                            session.setBaseCommit(firstParentBaseCommit);
-                            session.setTargetCommit(targetCommit);
-                            checkOutButton.setVisible(true);
-                            checkOutButton.setText("Checkout " + targetCommit.getShortHash());
-                            diffView.setLabel(MessageFormatter.format("Diff {} -> {}", targetCommit.getShortHash(), firstParentBaseCommit.getShortHash()).getMessage());
-                            return gitUtil.getDiff(firstParentBaseCommit.getHash(), targetCommit.getHash());
-                        } catch (Exception e1) {
-                            handleException(e1);
-                            return null;
-                        }
-                    }).thenAccept(diffs -> {
-                        SwingGraphicUtil.updateUI(() -> diffView.setDiffEntries(diffs));
-                    });
+                    if (session.getUseWorkingDirectory()) {
+                        SwingGraphicUtil.supply(() -> {
+                            try {
+                                diffView.setVisible(true);
+                                GitCommit baseCommit = gitTreeView.getCommit(selectedRows[0]);
+                                session.setBaseCommit(baseCommit);
+                                session.setTargetCommit(null);
+                                checkOutButton.setVisible(false);
+                                diffView.setLabel(MessageFormatter.format("Diff {} -> {}", "working directory", baseCommit.getShortHash()).getMessage());
+                                return gitUtil.getDiffWd(baseCommit.getHash());
+                            } catch (Exception e1) {
+                                handleException(e1);
+                                return null;
+                            }
+                        }).thenAccept(diffs -> {
+                            SwingGraphicUtil.updateUI(() -> diffView.setDiffEntries(diffs));
+                        });
+                    } else {
+                        SwingGraphicUtil.supply(() -> {
+                            try {
+                                diffView.setVisible(true);
+                                GitCommit targetCommit = gitTreeView.getCommit(selectedRows[0]);
+                                // NOTE: Perform diff against first parent
+                                // Justification here https://github.com/libgit2/pygit2/issues/907
+                                GitCommit firstParentBaseCommit = gitUtil.fromHash(targetCommit.getParentHashs().get(0));
+                                session.setBaseCommit(firstParentBaseCommit);
+                                session.setTargetCommit(targetCommit);
+                                checkOutButton.setVisible(true);
+                                checkOutButton.setText("Checkout " + targetCommit.getShortHash());
+                                diffView.setLabel(MessageFormatter.format("Diff {} -> {}", targetCommit.getShortHash(), firstParentBaseCommit.getShortHash()).getMessage());
+                                return gitUtil.getDiff(firstParentBaseCommit.getHash(), targetCommit.getHash());
+                            } catch (Exception e1) {
+                                handleException(e1);
+                                return null;
+                            }
+                        }).thenAccept(diffs -> {
+                            SwingGraphicUtil.updateUI(() -> diffView.setDiffEntries(diffs));
+                        });
+                    }
                 } else {
                     try {
                         SwingGraphicUtil.supply(() -> {
@@ -229,11 +286,11 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
         fetchButton.addActionListener(e -> {
             try {
                 fetchButton.setEnabled(false);
-                List<String> selectedBranches = getSelectedBranchs();
+                List<String> selectedBranches = getSelectedBranches();
                 gitUtil.fetch(session.getGitUsername(), session.getGitPassword());
                 List<GitRef> branchRefs = gitUtil.getBranchRefs(false).stream().map(GitRef::new).filter(it -> !it.isHead()).collect(Collectors.toList());
                 this.branches = branchRefs.stream().map(GitRef::toString).collect(Collectors.toList());
-                Vector<String> branchOptions = branches.stream().collect(Collectors.toCollection(Vector::new));
+                Vector<String> branchOptions = new Vector<>(branches);
                 branchOptions.add(0, "All branches");
                 gitRefsComboBox.setSelections(branchOptions);
                 gitRefsComboBox.setSelectedItem(selectedBranches.size() != 1 ? "All branches" : selectedBranches.get(0));
@@ -244,6 +301,40 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
                 handleException(e1);
             } finally {
                 fetchButton.setEnabled(true);
+            }
+        });
+        useWorkingDirectoryCheckbox.addItemListener(e -> {
+            try {
+                if (e.getStateChange() == ItemEvent.SELECTED) {
+                    session.setUseWorkingDirectory(true);
+                    session.setTargetCommit(null);
+                    fetchButton.setVisible(false);
+                    checkOutButton.setVisible(false);
+                    gitTreeView.setDiffToWorkingDirectory(true);
+                    gitRefsComboBox.setEditable(true);
+                    gitRefsComboBox.setEnabled(false);
+                    gitRefsComboBox.setSelectedItem(gitUtil.getHeadRef().getCommitHash());
+                    gitRefsComboBox.setLabel(COMMIT_LABEL);
+                } else if (e.getStateChange() == ItemEvent.DESELECTED) {
+                    session.setUseWorkingDirectory(false);
+                    gitTreeView.setDiffToWorkingDirectory(false);
+                    fetchButton.setVisible(true);
+                    gitRefsComboBox.setEditable(false);
+                    gitRefsComboBox.setEnabled(true);
+                    List<String> selectedBranches = getSelectedBranches();
+                    gitRefsComboBox.setSelectedItem(selectedBranches.size() != 1 ? "All branches" : selectedBranches.get(0));
+                    gitRefsComboBox.setLabel(BRANCH_LABEL);
+                }
+            } catch (Exception e1) {
+                handleException(e1);
+            }
+        });
+        refreshButton.addActionListener(e -> {
+            try {
+                currentCommitLabel.setText(getWorkingDirectoryCommitLabel());
+                refreshGitRelatedUI();
+            } catch (Exception ex) {
+                handleException(ex);
             }
         });
     }

@@ -96,6 +96,19 @@ public class App {
                                         .numberOfArgs(1)
                                         .build());
                         addOption(Option.builder()
+                                        .desc("Use working directory as the target of the build, use this to quickly build a test package from working directory, you're expected to fix any compilation first before running with this option, you can use this in addition with entryFilter flag to exclude any erroneous entry from the artifact. NOTE: Setting this will ignore targetRef, patchFile and projectPom parameter")
+                                        .option("useWorkingDirectory")
+                                        .required(false)
+                                        .hasArg(false)
+                                        .build());
+                        addOption(Option.builder()
+                                        .desc("Filter erroneous diff with regex")
+                                        .longOpt("entryFilter")
+                                        .required(false)
+                                        .hasArg(true)
+                                        .numberOfArgs(1)
+                                        .build());
+                        addOption(Option.builder()
                                         .desc("The folder that will be used to save the build artifacts")
                                         .longOpt("artifactFolder")
                                         .required(false)
@@ -185,17 +198,20 @@ public class App {
                                         .build());
                 }
         };
-
+        
         // TODO: Add progress bar
-        // TODO: Add note.txt for delete change types
-        // TODO: Hide fetch button
-        // TODO: Lock combobox from changing branch, build from chosen commit to working dir
-        // TODO: Hide checkout btn
+        // TODO: Add note.txt for delete change types -> Implemented
+        // TODO: Hide fetch button -> Implemented
+        // TODO: Lock combobox from changing branch, build from chosen commit to working dir -> Implemented
+        // TODO: Hide checkout btn -> Implemented
         // TODO: Recheck implementation when removing tab in UI result in nullpointerexception (NOTE: from 2 tab for getting artifact info from server and client to getting artifact info for client)
-        // TODO: Do not create jar file for server build
-        // TODO: Remove patch and config folder from artifact for release package build
+        // TODO: Do not create jar file for server build -> Implemented
+        // TODO: Remove patch and config folder from artifact for release package build -> Implemented
         // TODO: Popup for artifact info or switch to new panel
         // TODO: Update README.MD
+        // TODO: Remove Manifest from config jar -> Implemented, not checked
+        // TODO: Recheck why branch that had been removed still show up in combobox -> Git problem, ignored
+        // TODO: Add current working directory mode -> Implemented, not checked
         public static void main(String[] args) throws ParseException, InvalidRemoteException, TransportException,
                         GitAPIException, IOException, ClassNotFoundException, MavenInvocationException,
                         ModelBuildingException,
@@ -236,6 +252,8 @@ public class App {
                                 .map(File::new)
                                 .filter(File::isFile)
                                 .orElse(null);
+                        boolean useWorkingDirectory = commandLine.hasOption("useWorkingDirectory");
+                        String entryFilter = commandLine.getOptionValue("entryFilter");
                         try (CliBuildTool cliBuildTool = new CliBuildTool(
                                         clone,
                                         repoURI,
@@ -244,11 +262,13 @@ public class App {
                                         gitPassword,
                                         baseRef,
                                         targetRef,
+                                        entryFilter,
                                         artifactFolder,
                                         updateSnapshot,
                                         buildConfigJar,
                                         buildReleasePackage,
                                         buildPatch,
+                                        useWorkingDirectory,
                                         configPrefixes,
                                         databaseChangePrefixes,
                                         projectPom,

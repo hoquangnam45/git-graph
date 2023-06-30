@@ -40,6 +40,7 @@ public class GitTreeView extends JPanel implements ISimpleComponent {
     private transient List<GitCommit> orderedCommits = new ArrayList<>();
     private transient final GitWalk gitWalk;
     private Table<GitCommit> table;
+    private boolean diffToWorkingDirectory;
 
     // parent -> children commit hashes
     private Map<String, Set<String>> pendingEdges = new HashMap<>();
@@ -69,6 +70,19 @@ public class GitTreeView extends JPanel implements ISimpleComponent {
         this.gitWalk = gitWalk;
         initUI();
         registerListeners();
+    }
+
+    public void setDiffToWorkingDirectory(boolean diffToWorkingDirectory) {
+        this.diffToWorkingDirectory = diffToWorkingDirectory;
+        if (diffToWorkingDirectory) {
+            table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        } else {
+            table.setSelectionMode(ListSelectionModel.SINGLE_INTERVAL_SELECTION);
+        }
+    }
+    
+    public boolean isDiffToWorkingDirectory() {
+        return diffToWorkingDirectory;
     }
 
     @Override
@@ -102,9 +116,6 @@ public class GitTreeView extends JPanel implements ISimpleComponent {
 
         mainLayout.setHorizontalGroup(mainLayout.createParallelGroup().addComponent(scrollPane));
         mainLayout.setVerticalGroup(mainLayout.createSequentialGroup().addComponent(scrollPane));
-
-        walkAll();
-        initializeGraph();
     }
 
     public void walkAll() {
@@ -242,8 +253,15 @@ public class GitTreeView extends JPanel implements ISimpleComponent {
 
     public void setGitBranch(List<String> selectedBranches) throws IOException {
         gitWalk.setGitBranch(selectedBranches);
-
-        // Reset filter
+        resetFilter();
+    }
+    
+    public void setGitCommits(List<String> selectedCommits) throws IOException {
+        gitWalk.setGitCommit(selectedCommits);
+        resetFilter();
+    }
+    
+    private void resetFilter() {
         filterString = null;
         foundRows = new ArrayList<>();
         currentSearchIndex = -1;

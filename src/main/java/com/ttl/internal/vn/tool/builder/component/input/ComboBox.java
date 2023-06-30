@@ -74,7 +74,21 @@ public class ComboBox<E> extends JPanel {
         }
     }
 
+    @Override
+    public void setEnabled(boolean enabled) {
+        super.setEnabled(enabled);
+        comboBox.setEnabled(enabled);
+    }
+    
     public void setSelectedItem(E item) {
         comboBox.setSelectedItem(item);
+    }
+    
+    public void setEditable(boolean editable) {
+        comboBox.setEditable(editable);
+    }
+
+    public void setLabel(String branch) {
+        label.setText(branch);
     }
 }

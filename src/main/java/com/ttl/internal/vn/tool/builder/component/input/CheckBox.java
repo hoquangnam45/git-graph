@@ -2,15 +2,13 @@ package com.ttl.internal.vn.tool.builder.component.input;
 
 import java.awt.event.ActionListener;
 import java.awt.event.ItemListener;
+import java.util.function.BiFunction;
 
-import javax.swing.GroupLayout;
-import javax.swing.JCheckBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
+import javax.swing.*;
 
 public class CheckBox extends JPanel {
-    private JLabel label;
-    private JCheckBox checkBox;
+    private final JLabel label;
+    private final JCheckBox checkBox;
 
     public CheckBox(String label) {
         super();
@@ -43,6 +41,10 @@ public class CheckBox extends JPanel {
 
     public boolean isSelected() {
         return checkBox.isSelected();
+    }
+    
+    public void customGroupLayout(BiFunction<JLabel, JCheckBox, GroupLayout> layoutCustomizer) {
+        setLayout(layoutCustomizer.apply(label, checkBox));
     }
 
     public void setSelected(boolean selected) {

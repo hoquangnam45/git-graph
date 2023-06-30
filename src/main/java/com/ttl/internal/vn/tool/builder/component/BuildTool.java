@@ -16,6 +16,7 @@ import javax.swing.UIManager;
 import javax.swing.UnsupportedLookAndFeelException;
 import javax.swing.WindowConstants;
 
+import com.ttl.internal.vn.tool.builder.task.Task;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -128,7 +129,7 @@ public class BuildTool extends JFrame implements ISimpleComponent {
             SwingGraphicUtil.updateUI(() -> {
                 GitCloneDialog cloneDialog = new GitCloneDialog(this);
                 int result = cloneDialog.showDialog();
-                if (result == GitCloneDialog.Status.OK.ordinal()) {
+                if (result == Task.TaskStatus.DONE.ordinal()) {
                     try {
                         openBuildToolDashboard(cloneDialog.getClonedFolder());
                     } catch (GitAPIException e1) {

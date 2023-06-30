@@ -1,15 +1,15 @@
 package com.ttl.internal.vn.tool.builder.component;
 
-import java.awt.Checkbox;
-import java.awt.Color;
-import java.awt.Cursor;
-import java.awt.Dimension;
+import java.awt.*;
 import java.awt.event.ItemEvent;
 import java.io.File;
+import java.io.IOException;
 import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -23,8 +23,10 @@ import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 
+import com.ttl.internal.vn.tool.builder.git.GitCommit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.eclipse.jgit.diff.DiffEntry;
 import org.slf4j.helpers.MessageFormatter;
 
 import com.ttl.internal.vn.tool.builder.cli.CliBuildTool;
@@ -44,8 +46,8 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
     private FileField artifactFolderFileField;
     private FileField artifactPomFileField;
     private FileField mavenXmlSettingsFileField;
-    private FileField javaHomeField;
     private FileField patchFileField;
+    private TextField entryFilterField;
     private CheckBox buildConfigJarBtn;
     private CheckBox buildReleasePackageZipBtn;
     private CheckBox buildPatchBtn;
@@ -53,7 +55,8 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
     private CheckBox interactive;
     private Button buildBtn;
     private Button runCliBuildBtn;
-    private transient Session session;
+    private Button openArtifactButton;
+    private final transient Session session;
     private JTabbedPane getArtifactInfoTabbedPane;
     private DiffView diffView;
     private Object buildLock = new Object();
@@ -95,8 +98,8 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                 .setText(Paths.get(System.getProperty("user.home"), ".m2", "settings.xml").toAbsolutePath().toString());
         this.patchFileField = new FileField("Git patch files", LABEL_WIDTH, INPUT_WIDTH, JFileChooser.FILES_ONLY,
                 true, BoxLayout.Y_AXIS, null);
-        this.javaHomeField = new FileField("Java home", LABEL_WIDTH, INPUT_WIDTH, JFileChooser.DIRECTORIES_ONLY,
-                true, BoxLayout.Y_AXIS, null);
+        this.entryFilterField = new TextField("Filter entry regex", LABEL_WIDTH, INPUT_WIDTH, true, BoxLayout.Y_AXIS, null);
+
         JPanel inputPanel = new JPanel();
         GroupLayout inputGroupLayout = new GroupLayout(inputPanel);
         inputPanel.setLayout(inputGroupLayout);
@@ -105,13 +108,13 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                 .addComponent(artifactPomFileField)
                 .addComponent(mavenXmlSettingsFileField)
                 .addComponent(patchFileField)
-                .addComponent(javaHomeField));
+                .addComponent(entryFilterField));
         inputGroupLayout.setVerticalGroup(inputGroupLayout.createSequentialGroup()
                 .addComponent(artifactFolderFileField)
                 .addComponent(artifactPomFileField)
                 .addComponent(mavenXmlSettingsFileField)
                 .addComponent(patchFileField)
-                .addComponent(javaHomeField));
+                .addComponent(entryFilterField));
         inputPanel.setBackground(Color.GREEN);
 
         this.buildConfigJarBtn = new CheckBox(false, "Build config package?");
@@ -138,6 +141,8 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
 
         this.buildBtn = new Button("Build");
         this.runCliBuildBtn = new Button("Continue");
+        this.openArtifactButton = new Button("Open artifact folder");
+        openArtifactButton.setVisible(false);
         runCliBuildBtn.setVisible(false);
         runCliBuildBtn.setEnabled(false);
         JPanel buttonPanel = new JPanel();
@@ -147,10 +152,12 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
         buttonPanelGroupLayout.setAutoCreateGaps(true);
         buttonPanelGroupLayout.setHorizontalGroup(buttonPanelGroupLayout.createSequentialGroup()
                 .addComponent(buildBtn)
-                .addComponent(runCliBuildBtn));
+                .addComponent(runCliBuildBtn)
+                .addComponent(openArtifactButton));
         buttonPanelGroupLayout.setVerticalGroup(buttonPanelGroupLayout.createParallelGroup()
                 .addComponent(buildBtn)
-                .addComponent(runCliBuildBtn));
+                .addComponent(runCliBuildBtn)
+                .addComponent(openArtifactButton));
 
         this.diffView = new DiffView();
         diffView.setVisible(false);
@@ -186,6 +193,14 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
         setLayout(layout);
         layout.setHorizontalGroup(layout.createSequentialGroup().addComponent(scrollPane));
         layout.setVerticalGroup(layout.createParallelGroup().addComponent(scrollPane));
+
+        if (session.getUseWorkingDirectory()) {
+            patchFileField.setVisible(false);
+            entryFilterField.setVisible(true);
+        } else {
+            entryFilterField.setVisible(false);
+            patchFileField.setVisible(true);
+        }
     }
 
     @Override
@@ -197,28 +212,28 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
     public void registerListeners() {
         buildBtn.addActionListener(e -> {
             try {
-                if (session.getBaseCommit() == null || session.getTargetCommit() == null) {
-                    throw new NullPointerException("Haven't select base commit and target commit yet");
+                if (!session.getUseWorkingDirectory()) {
+                    if (session.getBaseCommit() == null || session.getTargetCommit() == null) {
+                        throw new NullPointerException("Haven't select base commit and target commit yet");
+                    }
+                } else {
+                    if (session.getBaseCommit() == null) {
+                        throw new NullPointerException("Haven't select base commit yet");
+                    }
                 }
                 buildBtn.setEnabled(false);
                 artifactFolderFileField.setEnabled(false);
                 artifactPomFileField.setEnabled(false);
                 patchFileField.setEnabled(false);
                 mavenXmlSettingsFileField.setEnabled(false);
-                javaHomeField.setEnabled(false);
                 buildConfigJarBtn.setEnabled(false);
                 buildReleasePackageZipBtn.setEnabled(false);
                 buildPatchBtn.setEnabled(false);
                 updateSnapshotCheckbox.setEnabled(false);
                 interactive.setEnabled(false);
+                entryFilterField.setEnabled(false);
                 diffView.setVisible(true);
-                diffView.setLabel(MessageFormatter.format("Build diff {} -> {}",
-                        session.getTargetCommit().getShortHash(), session.getBaseCommit().getShortHash()).getMessage());
-                diffView.setDiffEntries(session.getGitUtil().getDiff(session.getBaseCommit().getHash(),
-                        session.getTargetCommit().getHash()));
-                JFrame frame = ((JFrame) SwingUtilities.getRoot(this));
-                frame.pack();
-                frame.setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+                openArtifactButton.setVisible(false);
                 SwingGraphicUtil.run(() -> {
                     CliBuildTool command = null;
                     try {
@@ -229,19 +244,34 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                                 session.getGitUsername(),
                                 session.getGitPassword(),
                                 session.getBaseCommit().getHash(),
-                                session.getTargetCommit().getHash(),
+                                Optional.ofNullable(session.getTargetCommit()).map(GitCommit::getHash).orElse(null),
+                                session.getUseWorkingDirectory() ? entryFilterField.getText() : null,
                                 artifactFolderFileField.getSelectedFile(),
                                 updateSnapshotCheckbox.isSelected(),
                                 buildConfigJarBtn.isSelected(),
                                 buildReleasePackageZipBtn.isSelected(),
                                 buildPatchBtn.isSelected(),
+                                session.getUseWorkingDirectory(),
                                 null,
                                 null,
-                                artifactPomFileField.getSelectedFile(),
-                                javaHomeField.getSelectedFile(),
+                                session.getUseWorkingDirectory() ? null : artifactPomFileField.getSelectedFile(),
+                                null,
                                 patchFileField.getSelectedFile(),
                                 mavenXmlSettingsFileField.getSelectedFile(),
                                 interactive.isSelected() ? this::getArtifactInfo : DefaultCliGetArtifactInfo.getArtifactInfo(false));
+                        CliBuildTool finalCommand = command;
+                        SwingGraphicUtil.updateUI(() -> {
+                            try {
+                                String targetBuild = session.getUseWorkingDirectory() ? "working directory" : session.getTargetCommit().getShortHash();
+                                diffView.setLabel(MessageFormatter.format("Build diff {} -> {}",
+                                        targetBuild, session.getBaseCommit().getShortHash()).getMessage());
+                                List<DiffEntry> diffEntries = finalCommand.getDiff();
+                                diffView.setDiffEntries(diffEntries);
+                                SwingUtilities.getRoot(this).setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+                            } catch (IOException ex) {
+                                handleException(ex);
+                            }
+                        });
                         command.startBuildEnvironment();
                         command.build(false);
                         JOptionPane.showMessageDialog(ConfigDashBoard.this, "Build success", "Success",
@@ -255,10 +285,9 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                         runCliBuildBtn.setVisible(false);
 
                         buildBtn.setEnabled(true);
-                        SwingGraphicUtil.updateUI(() -> frame.setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)));
+                        SwingGraphicUtil.updateUI(() -> SwingUtilities.getRoot(this).setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)));
                         artifactFolderFileField.setEnabled(true);
                         artifactPomFileField.setEnabled(true);
-                        javaHomeField.setEnabled(true);
                         patchFileField.setEnabled(true);
                         mavenXmlSettingsFileField.setEnabled(true);
                         updateSnapshotCheckbox.setEnabled(true);
@@ -267,6 +296,8 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                         buildReleasePackageZipBtn.setEnabled(true);
                         buildPatchBtn.setEnabled(true);
                         diffView.setVisible(false);
+                        openArtifactButton.setVisible(true);
+                        entryFilterField.setEnabled(true);
 
                         getArtifactInfoTabbedPane.setVisible(false);
                         if (command != null) {
@@ -306,6 +337,43 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                 buildReleasePackageZipBtn.setSelected(false);
             }
         });
+
+        session.<Boolean>addListener(Session.USE_WORKING_DIRECTORY_CHANGED, useWorkingDirectory -> {
+            if (useWorkingDirectory) {
+                patchFileField.setVisible(false);
+                artifactPomFileField.setVisible(false);
+                entryFilterField.setVisible(true);
+            } else {
+                patchFileField.setVisible(true);
+                artifactPomFileField.setVisible(true);
+                entryFilterField.setVisible(false);
+            }
+        });
+
+        openArtifactButton.addActionListener(e -> {
+            try {
+                openFile(artifactFolderFileField.getSelectedFile());
+            } catch (IOException ex) {
+                handleException(ex);
+            }
+        });
+    }
+
+    public void openFile(File file) throws IOException {
+        // Check if Desktop is supported
+        if (Desktop.isDesktopSupported()) {
+            Desktop desktop = Desktop.getDesktop();
+
+            // Check if opening a file is supported
+            if (desktop.isSupported(Desktop.Action.OPEN)) {
+                // Open the file explorer at the specified path
+                desktop.open(file);
+            } else {
+                throw new UnsupportedOperationException("Opening file explorer is not supported on this platform.");
+            }
+        } else {
+            throw new UnsupportedOperationException("Desktop is not supported on this platform.");
+        }
     }
 
     @Override
@@ -323,7 +391,7 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
     private Map<String, ArtifactInfo> getArtifactInfo(List<String> modules) {
         SwingGraphicUtil.updateUI(() -> {
             getArtifactInfoTabbedPane.setVisible(true);
-            Set<String> modulesSet = modules.stream().collect(Collectors.toSet());
+            Set<String> modulesSet = new HashSet<>(modules);
             int i = -1;
             // Remove outdated module tab
             for (String module : artifactInfoFields.keySet()) {
@@ -396,10 +464,12 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
 
         Map<String, ArtifactInfo> info = new HashMap<>();
         for (Map.Entry<String, List<TextField>> entry : artifactInfoFields.entrySet()) {
+            boolean isServer = entry.getKey().toLowerCase().contains("server");
             info.put(entry.getKey(), ArtifactInfo.builder()
                     .patchName(entry.getValue().get(0).getText())
                     .configName(entry.getValue().get(1).getText())
                     .releasePackageName(entry.getValue().get(2).getText())
+                    .compress(!isServer)
                     .build());
         }
         return info;

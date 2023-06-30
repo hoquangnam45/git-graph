@@ -12,14 +12,13 @@ import org.eclipse.jgit.revwalk.RevWalk;
 import com.ttl.internal.vn.tool.builder.util.GitUtil;
 
 public class GitWalk implements Iterator<GitCommit> {
-    private List<GitRef> selectedBranchs;
+    private List<GitRef> selectedBranches;
+    private List<GitCommit> selectedCommits;
     private final GitUtil gitUtil;
     private Iterator<RevCommit> iterator;
 
-    public GitWalk(GitUtil gitUtil, List<String> selectedBranchs) throws IOException {
+    public GitWalk(GitUtil gitUtil) {
         this.gitUtil = gitUtil;
-        this.selectedBranchs = getRefs(selectedBranchs);
-        resetWalk();
     }
 
     public GitCommit walk() {
@@ -43,13 +42,17 @@ public class GitWalk implements Iterator<GitCommit> {
 
     public void resetWalk() throws IOException {
         try (RevWalk revWalk = gitUtil.getRevWalk()) {
-            for (GitRef gitRef : selectedBranchs) {
-                RevCommit commit = revWalk.parseCommit(gitRef.getRawRef().getObjectId());
+            for (GitRef gitRef : selectedBranches) {
+                RevCommit commit = revWalk.parseCommit(gitUtil.resolve(gitRef.getRawRef().getName()));
                 revWalk.markStart(commit);
-                revWalk.setRevFilter(null);
-                revWalk.sort(RevSort.TOPO);
-                revWalk.sort(RevSort.COMMIT_TIME_DESC, true);
             }
+            for (GitCommit gitCommit: selectedCommits) {
+                RevCommit commit =  revWalk.parseCommit(gitUtil.resolve(gitCommit.getHash()));
+                revWalk.markStart(commit);
+            }
+            revWalk.setRevFilter(null);
+            revWalk.sort(RevSort.TOPO);
+            revWalk.sort(RevSort.COMMIT_TIME_DESC, true);
             this.iterator = revWalk.iterator();
         }
     }
@@ -61,9 +64,24 @@ public class GitWalk implements Iterator<GitCommit> {
         }
         return refs;
     }
+    
+    private List<GitCommit> getCommits(List<String> commitHashes) throws IOException {
+        List<GitCommit> commits = new ArrayList<>();
+        for (String commitHash: commitHashes) {
+            commits.add(gitUtil.fromHash(commitHash));
+        }
+        return commits;
+    }
 
     public void setGitBranch(List<String> branchNames) throws IOException {
-        this.selectedBranchs = getRefs(branchNames);
+        this.selectedBranches = getRefs(branchNames);
+        this.selectedCommits = List.of();
+        resetWalk();
+    }
+    
+    public void setGitCommit(List<String> commitHashes) throws IOException {
+        this.selectedBranches = List.of();
+        this.selectedCommits = getCommits(commitHashes);
         resetWalk();
     }
 }
