@@ -6,7 +6,7 @@ import lombok.Getter;
 
 @Getter
 public class ValidationException extends Exception {
-    private final ValidatorError error;
+    private final transient ValidatorError error;
 
     public ValidationException(ValidatorError e) {
         super(e.getValidatorMessage());

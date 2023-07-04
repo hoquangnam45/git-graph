@@ -10,10 +10,10 @@ import lombok.Getter;
 @Builder
 @AllArgsConstructor
 public class ValidatorError {
-    public Component src;
-    public String validatorId;
-    public String validatorGroup;
-    public String validatorMessage;
+    private Component src;
+    private String validatorId;
+    private String validatorGroup;
+    private String validatorMessage;
 
     public void setSrc(Component src) {
         this.src = src;

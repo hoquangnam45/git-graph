@@ -1,5 +1,7 @@
 package com.ttl.internal.vn.tool.builder.component.dialog;
 
+import static org.eclipse.jgit.lib.ProgressMonitor.UNKNOWN;
+
 import java.awt.BorderLayout;
 import java.io.File;
 import java.io.PrintWriter;
@@ -8,9 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Vector;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow;
-import java.util.concurrent.Future;
 
 import javax.swing.BorderFactory;
 import javax.swing.GroupLayout;
@@ -22,17 +22,13 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.WindowConstants;
 
-import com.ttl.internal.vn.tool.builder.task.DefaultSubscriber;
-import com.ttl.internal.vn.tool.builder.task.ITaskController;
-import com.ttl.internal.vn.tool.builder.task.Task;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.TransportConfigCallback;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.TextProgressMonitor;
+import org.eclipse.jgit.transport.Transport;
 
 import com.ttl.internal.vn.tool.builder.component.IDialog;
 import com.ttl.internal.vn.tool.builder.component.Session;
@@ -45,16 +41,15 @@ import com.ttl.internal.vn.tool.builder.component.input.ProgressBar;
 import com.ttl.internal.vn.tool.builder.component.input.TextField;
 import com.ttl.internal.vn.tool.builder.component.input.TextValidator;
 import com.ttl.internal.vn.tool.builder.component.input.ValidatorError;
+import com.ttl.internal.vn.tool.builder.task.DefaultSubscriber;
+import com.ttl.internal.vn.tool.builder.task.ITaskController;
+import com.ttl.internal.vn.tool.builder.task.Task;
 import com.ttl.internal.vn.tool.builder.util.GitUtil;
-import com.ttl.internal.vn.tool.builder.util.SwingGraphicUtil;
 import com.ttl.internal.vn.tool.builder.util.GitUtil.CredentialEntry;
+import com.ttl.internal.vn.tool.builder.util.SwingGraphicUtil;
 
 import lombok.Getter;
 import lombok.Setter;
-import org.eclipse.jgit.transport.Transport;
-
-import static java.util.function.Predicate.not;
-import static org.eclipse.jgit.lib.ProgressMonitor.UNKNOWN;
 
 @Setter
 @Getter
@@ -68,7 +63,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
             this.gitCloneTask = gitCloneTask;
             this.textProgressMonitor = new TextProgressMonitor(outputWriter);
         }
-        
+
         @Override
         public void beginTask(String title, int totalWork) {
             gitCloneTask.beginTask(new GitCloneSubTask(title, totalWork));
@@ -122,7 +117,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
     private JFrame frame;
     private transient InputGroup inputGroup;
     private transient InputGroup inputGroup2;
-    private GitCloneTask gitCloneTask;
+    private transient GitCloneTask gitCloneTask;
 
     private static final int LABEL_LENGTH = 120;
     private static final int INPUT_LENGTH = 300;
@@ -251,8 +246,8 @@ public class GitCloneDialog extends JDialog implements IDialog {
                                 .build());
                     }
 
-                    
-                    this.gitCloneTask = new GitCloneTask(usernameField.getText(), passwordField.getText(), repoField.getText(), cloneFileField.getSelectedFile(), this);
+                    this.gitCloneTask = new GitCloneTask(usernameField.getText(), passwordField.getText(),
+                            repoField.getText(), cloneFileField.getSelectedFile(), this);
                     gitCloneTask.subscribe(new DefaultSubscriber<>() {
                         @Override
                         public void onComplete() {
@@ -300,7 +295,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
     public File getClonedFolder() {
         return cloneFileField.getSelectedFile();
     }
-    
+
     public static class GitCloneSubTask extends Task implements ITaskController {
         private int doneWork;
 
@@ -309,7 +304,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
         private TaskStatus status = TaskStatus.NOT_START;
         private final int totalWork;
         private final String title;
-        
+
         public GitCloneSubTask(String title, int totalWork) {
             super();
             this.totalWork = totalWork;
@@ -335,7 +330,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
             Optional.ofNullable(subscriber).ifPresent(Flow.Subscriber::onComplete);
             return true;
         }
-        
+
         @Override
         public String explainTask() {
             return title;
@@ -387,7 +382,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
             this.subscriber = subscriber;
         }
     }
-    
+
     @Getter
     public static class GitCloneTask extends Task implements ITaskController {
         private final String username;
@@ -402,7 +397,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
         private Flow.Subscriber<? super Task> subscriber;
         private boolean cancel;
         private boolean error;
-        
+
         public GitCloneTask(String username, String password, String uri, File targetFolder, GitCloneDialog dialog) {
             this.subtasks = new Vector<>();
             this.username = username;
@@ -430,7 +425,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
             });
             currentTask.start();
         }
-        
+
         @Override
         public String explainTask() {
             return Optional.ofNullable(currentTask).map(Task::explainTask).orElse(null);
@@ -438,12 +433,15 @@ public class GitCloneDialog extends JDialog implements IDialog {
 
         @Override
         public int totalWork() {
-            return subtasks.stream().map(it -> it.scaling() * it.totalWork()).map(Math::ceil).map(Integer.class::cast).reduce(0, Integer::sum);
+            return subtasks.stream().map(it -> it.scaling() * it.totalWork()).map(Math::ceil).map(Integer.class::cast)
+                    .reduce(0, Integer::sum);
         }
 
         @Override
         public int doneWork() {
-            return subtasks.stream().filter(it -> it.status() != TaskStatus.IN_PROGRESS.ordinal()).map(it -> it.scaling() * it.totalWork()).map(Math::ceil).map(Integer.class::cast).reduce(0, Integer::sum);
+            return subtasks.stream().filter(it -> it.status() != TaskStatus.IN_PROGRESS.ordinal())
+                    .map(it -> it.scaling() * it.totalWork()).map(Math::ceil).map(Integer.class::cast)
+                    .reduce(0, Integer::sum);
         }
 
         @Override
@@ -454,7 +452,8 @@ public class GitCloneDialog extends JDialog implements IDialog {
             if (cancel) {
                 return TaskStatus.CANCEL.ordinal();
             }
-            boolean inProgress = subtasks.stream().map(Task::status).anyMatch(it -> it == TaskStatus.IN_PROGRESS.ordinal());
+            boolean inProgress = subtasks.stream().map(Task::status)
+                    .anyMatch(it -> it == TaskStatus.IN_PROGRESS.ordinal());
             if (inProgress) {
                 return TaskStatus.IN_PROGRESS.ordinal();
             }
@@ -473,7 +472,8 @@ public class GitCloneDialog extends JDialog implements IDialog {
         public boolean start() {
             SwingGraphicUtil.run(() -> {
                 try {
-                    GitUtil.cloneGitRepo(uri, targetFolder, username, password, new GitCloneProgressMonitor(this, new PrintWriter(System.out)));
+                    GitUtil.cloneGitRepo(uri, targetFolder, username, password,
+                            new GitCloneProgressMonitor(this, new PrintWriter(System.out)));
                     subscriber.onComplete();
                 } catch (GitAPIException e) {
                     throw new RuntimeException(e);
@@ -481,7 +481,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
             });
             return true;
         }
-        
+
         @Override
         public boolean stopExceptionally(Throwable e) {
             cancel();
@@ -490,12 +490,12 @@ public class GitCloneDialog extends JDialog implements IDialog {
             subscriber.onError(e);
             return true;
         }
-        
+
         @Override
         public double percentage() {
             return Optional.ofNullable(currentTask).map(Task::percentage).orElse(0.);
         }
-        
+
         @Override
         public boolean update(int doneWork) {
             Optional.ofNullable(currentTask).ifPresent(it -> {

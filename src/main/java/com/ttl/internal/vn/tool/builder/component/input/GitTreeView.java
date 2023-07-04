@@ -38,7 +38,7 @@ import com.ttl.internal.vn.tool.builder.git.GitWalk;
 public class GitTreeView extends JPanel implements ISimpleComponent {
     private final transient Logger logger = LogManager.getLogger(GitTreeView.class);
     private transient List<GitCommit> orderedCommits = new ArrayList<>();
-    private transient final GitWalk gitWalk;
+    private final transient GitWalk gitWalk;
     private Table<GitCommit> table;
     private boolean diffToWorkingDirectory;
 

@@ -27,7 +27,7 @@ public class TextField extends JPanel {
     protected static final int TEXTFIELD_HEIGHT = 28;
 
     protected transient List<TextValidator> validators;
-    protected JTextField textField;
+    protected JTextField innerTextField;
 
     protected TextField() {
         super();
@@ -47,14 +47,14 @@ public class TextField extends JPanel {
             this.validators = new ArrayList<>();
         }
         JLabel inputLabel = new JLabel(label);
-        this.textField = new JTextField();
+        this.innerTextField = new JTextField();
 
-        setLayout(createLayout(inputLabel, textField, labelWidth, labelWidth, stretch, axis));
+        setLayout(createLayout(inputLabel, innerTextField, labelWidth, inputWidth, stretch, axis));
 
-        textField.addFocusListener(new FocusAdapter() {
+        innerTextField.addFocusListener(new FocusAdapter() {
             @Override
             public void focusLost(FocusEvent e) {
-                textField.setText(getText().trim());
+                innerTextField.setText(getText().trim());
             }
         });
     }
@@ -93,39 +93,39 @@ public class TextField extends JPanel {
     }
 
     public String getText() {
-        return textField.getText();
+        return innerTextField.getText();
     }
 
     public void setEditable(boolean editable) {
-        textField.setEditable(editable);
+        innerTextField.setEditable(editable);
     }
 
     public boolean isEditable() {
-        return textField.isEditable();
+        return innerTextField.isEditable();
     }
 
     public void setText(String text) {
-        textField.setText(text);
+        innerTextField.setText(text);
     }
 
     @Override
     public void requestFocus() {
-        textField.requestFocus();
+        innerTextField.requestFocus();
     }
 
     @Override
     public boolean requestFocus(boolean temporary) {
-        return textField.requestFocus(temporary);
+        return innerTextField.requestFocus(temporary);
     }
 
     @Override
     public synchronized void addFocusListener(FocusListener l) {
-        textField.addFocusListener(l);
+        innerTextField.addFocusListener(l);
     }
 
     @Override
     public void requestFocus(Cause cause) {
-        textField.requestFocus(cause);
+        innerTextField.requestFocus(cause);
     }
 
     public List<ValidatorError> validateInput() {
@@ -150,27 +150,27 @@ public class TextField extends JPanel {
     }
 
     public void addActionListener(ActionListener l) {
-        textField.addActionListener(l);
+        innerTextField.addActionListener(l);
     }
 
     @Override
     public synchronized void addKeyListener(KeyListener l) {
-        textField.addKeyListener(l);
+        innerTextField.addKeyListener(l);
     }
 
     @Override
     public synchronized void addInputMethodListener(InputMethodListener l) {
-        textField.addInputMethodListener(l);
+        innerTextField.addInputMethodListener(l);
     }
 
     @Override
     public void setEnabled(boolean enabled) {
         super.setEnabled(enabled);
-        textField.setEnabled(enabled);
+        innerTextField.setEnabled(enabled);
     }
 
     public void addDocumentListener(DocumentListener l) {
-        textField.getDocument().addDocumentListener(l);
+        innerTextField.getDocument().addDocumentListener(l);
     }
 
     public static class Validator {

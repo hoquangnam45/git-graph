@@ -1,5 +1,8 @@
 package com.ttl.internal.vn.tool.builder.git;
 
+import java.util.Optional;
+
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.Ref;
 
 public class GitRef {
@@ -13,7 +16,7 @@ public class GitRef {
         this.rawRef = ref;
         this.name = ref.getName();
         this.refTokens = name.split(REF_NAME_SEPERATOR);
-        this.commitHash = ref.getObjectId().name();
+        this.commitHash = Optional.of(ref).map(Ref::getObjectId).map(ObjectId::name).orElse(null);
     }
 
     public Ref getRawRef() {
@@ -68,7 +71,7 @@ public class GitRef {
     public String getShortCommitHash() {
         return commitHash.substring(0, 7);
     }
-    
+
     // Example: master
     public String getShortestName() {
         return refTokens[refTokens.length - 1];

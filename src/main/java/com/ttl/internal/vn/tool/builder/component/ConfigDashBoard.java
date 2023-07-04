@@ -1,6 +1,9 @@
 package com.ttl.internal.vn.tool.builder.component;
 
-import java.awt.*;
+import java.awt.Color;
+import java.awt.Cursor;
+import java.awt.Desktop;
+import java.awt.Dimension;
 import java.awt.event.ItemEvent;
 import java.io.File;
 import java.io.IOException;
@@ -11,19 +14,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import javax.swing.BoxLayout;
 import javax.swing.GroupLayout;
 import javax.swing.JFileChooser;
-import javax.swing.JFrame;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTabbedPane;
 import javax.swing.SwingUtilities;
 
-import com.ttl.internal.vn.tool.builder.git.GitCommit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.jgit.diff.DiffEntry;
@@ -39,6 +39,7 @@ import com.ttl.internal.vn.tool.builder.component.input.FileField;
 import com.ttl.internal.vn.tool.builder.component.input.TextField;
 import com.ttl.internal.vn.tool.builder.component.input.TextValidator;
 import com.ttl.internal.vn.tool.builder.component.input.ValidatorError;
+import com.ttl.internal.vn.tool.builder.git.GitCommit;
 import com.ttl.internal.vn.tool.builder.util.SwingGraphicUtil;
 
 public class ConfigDashBoard extends JPanel implements ISimpleComponent {
@@ -59,7 +60,7 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
     private final transient Session session;
     private JTabbedPane getArtifactInfoTabbedPane;
     private DiffView diffView;
-    private Object buildLock = new Object();
+    private transient Object buildLock = new Object();
     private Map<String, List<TextField>> artifactInfoFields = new HashMap<>();
 
     private static final int INPUT_WIDTH = 300;
@@ -98,7 +99,8 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                 .setText(Paths.get(System.getProperty("user.home"), ".m2", "settings.xml").toAbsolutePath().toString());
         this.patchFileField = new FileField("Git patch files", LABEL_WIDTH, INPUT_WIDTH, JFileChooser.FILES_ONLY,
                 true, BoxLayout.Y_AXIS, null);
-        this.entryFilterField = new TextField("Filter entry regex", LABEL_WIDTH, INPUT_WIDTH, true, BoxLayout.Y_AXIS, null);
+        this.entryFilterField = new TextField("Filter entry regex", LABEL_WIDTH, INPUT_WIDTH, true, BoxLayout.Y_AXIS,
+                null);
 
         JPanel inputPanel = new JPanel();
         GroupLayout inputGroupLayout = new GroupLayout(inputPanel);
@@ -258,11 +260,13 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                                 null,
                                 patchFileField.getSelectedFile(),
                                 mavenXmlSettingsFileField.getSelectedFile(),
-                                interactive.isSelected() ? this::getArtifactInfo : DefaultCliGetArtifactInfo.getArtifactInfo(false));
+                                interactive.isSelected() ? this::getArtifactInfo
+                                        : DefaultCliGetArtifactInfo.getArtifactInfo(false));
                         CliBuildTool finalCommand = command;
                         SwingGraphicUtil.updateUI(() -> {
                             try {
-                                String targetBuild = session.getUseWorkingDirectory() ? "working directory" : session.getTargetCommit().getShortHash();
+                                String targetBuild = session.getUseWorkingDirectory() ? "working directory"
+                                        : session.getTargetCommit().getShortHash();
                                 diffView.setLabel(MessageFormatter.format("Build diff {} -> {}",
                                         targetBuild, session.getBaseCommit().getShortHash()).getMessage());
                                 List<DiffEntry> diffEntries = finalCommand.getDiff();
@@ -285,7 +289,8 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                         runCliBuildBtn.setVisible(false);
 
                         buildBtn.setEnabled(true);
-                        SwingGraphicUtil.updateUI(() -> SwingUtilities.getRoot(this).setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)));
+                        SwingGraphicUtil.updateUI(() -> SwingUtilities.getRoot(this)
+                                .setCursor(Cursor.getPredefinedCursor(Cursor.DEFAULT_CURSOR)));
                         artifactFolderFileField.setEnabled(true);
                         artifactPomFileField.setEnabled(true);
                         patchFileField.setEnabled(true);

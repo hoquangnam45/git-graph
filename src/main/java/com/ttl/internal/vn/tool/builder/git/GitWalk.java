@@ -46,8 +46,8 @@ public class GitWalk implements Iterator<GitCommit> {
                 RevCommit commit = revWalk.parseCommit(gitUtil.resolve(gitRef.getRawRef().getName()));
                 revWalk.markStart(commit);
             }
-            for (GitCommit gitCommit: selectedCommits) {
-                RevCommit commit =  revWalk.parseCommit(gitUtil.resolve(gitCommit.getHash()));
+            for (GitCommit gitCommit : selectedCommits) {
+                RevCommit commit = revWalk.parseCommit(gitUtil.resolve(gitCommit.getHash()));
                 revWalk.markStart(commit);
             }
             revWalk.setRevFilter(null);
@@ -64,10 +64,10 @@ public class GitWalk implements Iterator<GitCommit> {
         }
         return refs;
     }
-    
+
     private List<GitCommit> getCommits(List<String> commitHashes) throws IOException {
         List<GitCommit> commits = new ArrayList<>();
-        for (String commitHash: commitHashes) {
+        for (String commitHash : commitHashes) {
             commits.add(gitUtil.fromHash(commitHash));
         }
         return commits;
@@ -78,7 +78,7 @@ public class GitWalk implements Iterator<GitCommit> {
         this.selectedCommits = List.of();
         resetWalk();
     }
-    
+
     public void setGitCommit(List<String> commitHashes) throws IOException {
         this.selectedBranches = List.of();
         this.selectedCommits = getCommits(commitHashes);

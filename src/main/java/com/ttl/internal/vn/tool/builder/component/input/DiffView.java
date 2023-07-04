@@ -1,29 +1,20 @@
 package com.ttl.internal.vn.tool.builder.component.input;
 
-import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Dimension;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
 import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.List;
 
-import javax.swing.BoxLayout;
 import javax.swing.GroupLayout;
-import javax.swing.JFrame;
+import javax.swing.GroupLayout.ParallelGroup;
+import javax.swing.GroupLayout.SequentialGroup;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
-import javax.swing.SwingUtilities;
-import javax.swing.GroupLayout.Group;
-import javax.swing.GroupLayout.ParallelGroup;
-import javax.swing.GroupLayout.SequentialGroup;
-import javax.swing.JButton;
 
 import org.eclipse.jgit.diff.DiffEntry;
-import org.eclipse.jgit.diff.DiffEntry.ChangeType;
 
 import com.ttl.internal.vn.tool.builder.component.ISimpleComponent;
 
@@ -62,11 +53,11 @@ public class DiffView extends JPanel implements ISimpleComponent {
         mainGroupLayout.setAutoCreateGaps(true);
         setLayout(mainGroupLayout);
         mainGroupLayout.setHorizontalGroup(mainGroupLayout.createParallelGroup()
-            .addComponent(diffLabel, GroupLayout.Alignment.TRAILING)
-            .addComponent(scrollPane));
+                .addComponent(diffLabel, GroupLayout.Alignment.TRAILING)
+                .addComponent(scrollPane));
         mainGroupLayout.setVerticalGroup(mainGroupLayout.createSequentialGroup()
-            .addComponent(diffLabel)
-            .addComponent(scrollPane));
+                .addComponent(diffLabel)
+                .addComponent(scrollPane));
     }
 
     public void clearDiff() {
@@ -78,7 +69,7 @@ public class DiffView extends JPanel implements ISimpleComponent {
     public void setLabel(String label) {
         diffLabel.setText(label);
     }
-    
+
     @Override
     public void refreshUI() {
         containerPanel.removeAll();
@@ -99,7 +90,7 @@ public class DiffView extends JPanel implements ISimpleComponent {
         groupLayout.setVerticalGroup(verticalGroup);
         groupLayout.setHorizontalGroup(horizontalGroup);
     }
-    
+
     private List<JLabel> getLabelComponents(List<DiffEntry> entries) {
         if (entries == null) {
             return List.of();
@@ -111,12 +102,12 @@ public class DiffView extends JPanel implements ISimpleComponent {
             Color changeColor;
             String changeDescription;
             switch (entry.getChangeType()) {
-                case ADD: 
+                case ADD:
                     changeType = "A";
                     changeColor = Color.GREEN;
                     changeDescription = entry.getNewPath();
                     break;
-                case MODIFY: 
+                case MODIFY:
                     changeType = "M";
                     changeColor = Color.YELLOW;
                     changeDescription = entry.getNewPath();
@@ -140,7 +131,8 @@ public class DiffView extends JPanel implements ISimpleComponent {
                     throw new UnsupportedOperationException();
             }
             String htmlColor = "#" + Integer.toHexString(changeColor.getRGB()).substring(2).toUpperCase();
-            label.setText(MessageFormat.format("<html><b color={0}>{1}</b> {2}</html>", htmlColor, changeType, changeDescription));
+            label.setText(MessageFormat.format("<html><b color={0}>{1}</b> {2}</html>", htmlColor, changeType,
+                    changeDescription));
             labels.add(label);
         }
         return labels;

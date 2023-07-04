@@ -2,12 +2,9 @@ package com.ttl.internal.vn.tool.builder.component.input;
 
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
-import java.awt.event.FocusListener;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.swing.BoxLayout;
 import javax.swing.GroupLayout;
@@ -23,7 +20,8 @@ import com.ttl.internal.vn.tool.builder.util.SwingGraphicUtil;
 public class FileField extends TextField {
     protected Button selectFolderButton;
 
-    public FileField(String label, int labelWidth, int inputWidth, int fileSelectionMode, List<TextValidator> validators) {
+    public FileField(String label, int labelWidth, int inputWidth, int fileSelectionMode,
+            List<TextValidator> validators) {
         this(label, labelWidth, inputWidth, fileSelectionMode, true, BoxLayout.X_AXIS, validators);
     }
 
@@ -36,16 +34,16 @@ public class FileField extends TextField {
         }
         this.selectFolderButton = new Button("...");
         JLabel inputLabel = new JLabel(label);
-        this.textField = new JTextField();
+        this.innerTextField = new JTextField();
         JPanel textFieldPanel = new JPanel();
         GroupLayout textFieldPanelGroupLayout = new GroupLayout(textFieldPanel);
         textFieldPanel.setLayout(textFieldPanelGroupLayout);
         textFieldPanelGroupLayout.setHorizontalGroup(
                 textFieldPanelGroupLayout.createSequentialGroup()
-                        .addComponent(textField)
+                        .addComponent(innerTextField)
                         .addComponent(selectFolderButton));
         textFieldPanelGroupLayout.setVerticalGroup(textFieldPanelGroupLayout.createParallelGroup()
-                .addComponent(textField, TEXTFIELD_HEIGHT, TEXTFIELD_HEIGHT, TEXTFIELD_HEIGHT)
+                .addComponent(innerTextField, TEXTFIELD_HEIGHT, TEXTFIELD_HEIGHT, TEXTFIELD_HEIGHT)
                 .addComponent(selectFolderButton, TEXTFIELD_HEIGHT, TEXTFIELD_HEIGHT, TEXTFIELD_HEIGHT));
 
         setLayout(createLayout(inputLabel, textFieldPanel, labelWidth, inputWidth, stretch, axis));
@@ -64,15 +62,15 @@ public class FileField extends TextField {
                     // Get the selected file
                     File selectedFile = fileChooser.getSelectedFile();
                     String text = selectedFile.getAbsolutePath();
-                    this.textField.setText(text);
+                    this.innerTextField.setText(text);
                 }
             });
         });
 
-        textField.addFocusListener(new FocusAdapter() {
+        innerTextField.addFocusListener(new FocusAdapter() {
             @Override
             public void focusLost(FocusEvent e) {
-                textField.setText(getText().trim());
+                innerTextField.setText(getText().trim());
             }
         });
     }

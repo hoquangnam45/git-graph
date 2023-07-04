@@ -3,10 +3,7 @@ package com.ttl.internal.vn.tool.builder;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Paths;
-import java.util.List;
 import java.util.Optional;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import javax.swing.UnsupportedLookAndFeelException;
 
@@ -120,7 +117,7 @@ public class App {
                                         .option("updateSnapshot")
                                         .required(false)
                                         .hasArg(false)
-                                        .build());              
+                                        .build());
                         addOption(Option.builder()
                                         .desc("Whether it will build the configuration jar")
                                         .option("buildConfigJar")
@@ -190,7 +187,7 @@ public class App {
                                         .hasArg(true)
                                         .numberOfArgs(1)
                                         .build());
-                      addOption(Option.builder()
+                        addOption(Option.builder()
                                         .desc("Whether it will ask for artifact info interactively")
                                         .option("interactive")
                                         .required(false)
@@ -198,19 +195,24 @@ public class App {
                                         .build());
                 }
         };
-        
+
         // TODO: Add progress bar
         // TODO: Add note.txt for delete change types -> Implemented
         // TODO: Hide fetch button -> Implemented
-        // TODO: Lock combobox from changing branch, build from chosen commit to working dir -> Implemented
+        // TODO: Lock combobox from changing branch, build from chosen commit to working
+        // dir -> Implemented
         // TODO: Hide checkout btn -> Implemented
-        // TODO: Recheck implementation when removing tab in UI result in nullpointerexception (NOTE: from 2 tab for getting artifact info from server and client to getting artifact info for client)
+        // TODO: Recheck implementation when removing tab in UI result in
+        // nullpointerexception (NOTE: from 2 tab for getting artifact info from server
+        // and client to getting artifact info for client)
         // TODO: Do not create jar file for server build -> Implemented
-        // TODO: Remove patch and config folder from artifact for release package build -> Implemented
+        // TODO: Remove patch and config folder from artifact for release package build
+        // -> Implemented
         // TODO: Popup for artifact info or switch to new panel
         // TODO: Update README.MD
         // TODO: Remove Manifest from config jar -> Implemented, not checked
-        // TODO: Recheck why branch that had been removed still show up in combobox -> Git problem, ignored
+        // TODO: Recheck why branch that had been removed still show up in combobox ->
+        // Git problem, ignored
         // TODO: Add current working directory mode -> Implemented, not checked
         public static void main(String[] args) throws ParseException, InvalidRemoteException, TransportException,
                         GitAPIException, IOException, ClassNotFoundException, MavenInvocationException,
@@ -237,21 +239,22 @@ public class App {
                         boolean buildConfigJar = commandLine.hasOption("buildConfigJar");
                         boolean buildPatch = commandLine.hasOption("buildPatch");
                         boolean buildReleasePackage = commandLine.hasOption("buildReleasePackage");
-                        File projectPom = Optional.ofNullable(commandLine.getOptionValue("projectPom")).map(File::new).orElse(null);
+                        File projectPom = Optional.ofNullable(commandLine.getOptionValue("projectPom")).map(File::new)
+                                        .orElse(null);
                         File m2SettingsXml = new File(commandLine.getOptionValue("m2SettingsXml"));
                         boolean fetch = commandLine.hasOption("fetch");
                         String databaseChangePrefixes = commandLine.getOptionValue("databaseChangePrefixes");
                         String configPrefixes = commandLine.getOptionValue("configPrefixes");
                         boolean updateSnapshot = commandLine.hasOption("updateSnapshot");
                         File patchFile = Optional.ofNullable(commandLine.getOptionValue("patchFile"))
-                                .map(File::new)
-                                .filter(File::isFile)
-                                .orElse(null);
+                                        .map(File::new)
+                                        .filter(File::isFile)
+                                        .orElse(null);
                         boolean interactive = commandLine.hasOption("interactive");
                         File javaHome = Optional.ofNullable(commandLine.getOptionValue("javaHome"))
-                                .map(File::new)
-                                .filter(File::isFile)
-                                .orElse(null);
+                                        .map(File::new)
+                                        .filter(File::isFile)
+                                        .orElse(null);
                         boolean useWorkingDirectory = commandLine.hasOption("useWorkingDirectory");
                         String entryFilter = commandLine.getOptionValue("entryFilter");
                         try (CliBuildTool cliBuildTool = new CliBuildTool(

@@ -17,8 +17,10 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -27,13 +29,11 @@ import java.util.Map.Entry;
 import java.util.Optional;
 import java.util.Scanner;
 import java.util.Set;
-import java.util.Stack;
 import java.util.function.Function;
 import java.util.jar.Attributes;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
-import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -41,7 +41,6 @@ import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.commons.lang3.builder.Diff;
 import org.apache.maven.model.Model;
 import org.apache.maven.model.building.DefaultModelBuilderFactory;
 import org.apache.maven.model.building.DefaultModelBuildingRequest;
@@ -141,7 +140,9 @@ public class CliBuildTool implements AutoCloseable {
         }
     }
 
-    // NOTE: When useWorkingDirectory is enabled, it will build from baseRef to working dir without doing any checkout or patching or copy project pom, only use this to build a test artifact
+    // NOTE: When useWorkingDirectory is enabled, it will build from baseRef to
+    // working dir without doing any checkout or patching or copy project pom, only
+    // use this to build a test artifact
     public CliBuildTool(
             boolean clone,
             String repoURI,
@@ -219,9 +220,12 @@ public class CliBuildTool implements AutoCloseable {
         } else {
             diffEntries = gitUtil.getDiff(baseRef, targetRef);
         }
-        return Optional.ofNullable(entryFilter).map(Pattern::compile).map(pattern -> diffEntries.stream().filter(entry -> !pattern.matcher(entry.toString()).find()).collect(Collectors.toList())).orElse(List.of());
+        return Optional
+                .ofNullable(entryFilter).map(Pattern::compile).map(pattern -> diffEntries.stream()
+                        .filter(entry -> !pattern.matcher(entry.toString()).find()).collect(Collectors.toList()))
+                .orElse(List.of());
     }
-    
+
     public void build(boolean fetch) throws IOException, GitAPIException, MavenInvocationException,
             ClassNotFoundException, ModelBuildingException {
         try {
@@ -242,7 +246,8 @@ public class CliBuildTool implements AutoCloseable {
                 }
             }).orElseThrow(() -> new UnsupportedOperationException("should not happen with normal git repo"));
 
-            // NOTE: If useWorkingDirectory is enabled it should not perform any checkout or apply git patch
+            // NOTE: If useWorkingDirectory is enabled it should not perform any checkout or
+            // apply git patch
             if (!useWorkingDirectory) {
                 checkout(targetRef);
                 if (patchFile != null) {
@@ -260,7 +265,7 @@ public class CliBuildTool implements AutoCloseable {
 
             // Calculate the diff between commits
             List<DiffEntry> diffEntries = getDiff();
-                    
+
             // Calculate submodules, changed submodules
             List<String> modules = mavenModelProject.getModules();
             Map<String, List<String>> moduleToDeletedEntriesMap = diffEntries.stream()
@@ -306,7 +311,8 @@ public class CliBuildTool implements AutoCloseable {
                     }));
             // Calculate depedent module map: module -> depend on modules (including self)
             Map<String, List<String>> depedendOnModuleMap = depedendOnOtherModuleMap.entrySet().stream()
-                    .collect(Collectors.toMap(Entry::getKey, it -> Stream.of(List.of(it.getKey()), it.getValue()).flatMap(List::stream).collect(Collectors.toList())));
+                    .collect(Collectors.toMap(Entry::getKey, it -> Stream.of(List.of(it.getKey()), it.getValue())
+                            .flatMap(List::stream).collect(Collectors.toList())));
 
             // Calculate free modules
             Set<String> aggregratedDependOnModules = depedendOnOtherModuleMap.entrySet().stream()
@@ -332,7 +338,7 @@ public class CliBuildTool implements AutoCloseable {
             if (moduleToDeletedEntriesMap.size() > 0) {
                 noteDeletedFiles(freeDeletedModules, depedendOnModuleMap, moduleToDeletedEntriesMap);
             }
-            
+
             if (shouldBuildPatch) {
                 buildPatch(freeChangedModules, depedendOnModuleMap, changedModuleFileMap, classpathMap,
                         artifactInfoModuleMap,
@@ -354,8 +360,10 @@ public class CliBuildTool implements AutoCloseable {
         }
     }
 
-    private void noteDeletedFiles(List<String> freeModuleContainDeletedFiles, Map<String, List<String>> dependOnModuleMap, Map<String, List<String>> moduleToDeletedFilesMap) throws IOException {
-        for (String module: freeModuleContainDeletedFiles) {
+    private void noteDeletedFiles(List<String> freeModuleContainDeletedFiles,
+            Map<String, List<String>> dependOnModuleMap, Map<String, List<String>> moduleToDeletedFilesMap)
+            throws IOException {
+        for (String module : freeModuleContainDeletedFiles) {
             File deletedNoteFile = getDeletedNoteFile(module);
             if (!deletedNoteFile.exists()) {
                 deletedNoteFile.getParentFile().mkdirs();
@@ -363,12 +371,11 @@ public class CliBuildTool implements AutoCloseable {
             }
             try (
                     Writer writer = new FileWriter(deletedNoteFile);
-                    BufferedWriter bw = new BufferedWriter(writer);
-            ) {
+                    BufferedWriter bw = new BufferedWriter(writer);) {
                 List<String> dependOnModules = dependOnModuleMap.get(module);
                 for (String dependOnModule : dependOnModules) {
                     List<String> deletedEntries = moduleToDeletedFilesMap.getOrDefault(dependOnModule, List.of());
-                    for (String entry: deletedEntries) {
+                    for (String entry : deletedEntries) {
                         bw.write(entry);
                         bw.newLine();
                     }
@@ -409,17 +416,18 @@ public class CliBuildTool implements AutoCloseable {
             String className = getClassName(javaFile);
             List<Class<?>> changedJavaClasses = new ArrayList<>();
             Class<?> clazz = classLoader.loadClass(packageName + "." + className);
-            
-            Stack<Class<?>> stack = new Stack<>();
+
+            Deque<Class<?>> stack = new ArrayDeque<>();
             stack.add(clazz);
-            
-            while(!stack.empty()) {
+
+            while (!stack.isEmpty()) {
                 Class<?> c = stack.pop();
                 changedJavaClasses.add(c);
                 stack.addAll(List.of(c.getDeclaredClasses()));
             }
-            
-            List<File> classFiles = packageToChangedClassFilesMap.compute(packageName, (k, v) -> v == null ? new ArrayList<>() : v);
+
+            List<File> classFiles = packageToChangedClassFilesMap.compute(packageName,
+                    (k, v) -> v == null ? new ArrayList<>() : v);
             packageToChangedClassesMap.put(packageName, changedJavaClasses);
             for (Class<?> c : changedJavaClasses) {
                 File classpath = new File(c.getProtectionDomain().getCodeSource().getLocation().getFile());
@@ -434,59 +442,62 @@ public class CliBuildTool implements AutoCloseable {
             }
         }
 
-        // NOTE: Quite a hacky approach to collect all anonymous classes, required maven clean for reproducible result
-        Map<String, List<File>> packageToChangedAnonymousClassMap = packageToChangedClassesMap.entrySet().stream().collect(Collectors.toMap(Entry::getKey, it -> {
-            String packageName = it.getKey();
-            Set<Class<?>> changedJavaClassSet = new HashSet<>(it.getValue());
-            Set<String> classNameSet = changedJavaClassSet.stream()
-                    .map(Class::getName)
-                    .collect(Collectors.toSet());
-            return packageToChangedClassFilesMap.get(packageName).stream()
-                    .map(File::getParentFile)
-                    .distinct()
-                    .map(File::listFiles)
-                    .flatMap(Stream::of)
-                    .filter(File::isFile)
-                    .map(File::getName)
-                    .filter(iit -> iit.endsWith(".class"))
-                    .map(iit -> iit.substring(0, iit.length() - ".class".length()))
-                    .map(iit -> packageName + "." + iit)
-                    .filter(iit -> !classNameSet.contains(iit))
-                    .map(iit -> {
-                        try {
-                            return classLoader.loadClass(iit);
-                        } catch (ClassNotFoundException e) {
-                            throw new RuntimeException(e);
-                        }
-                    })
-                    .filter(Class::isAnonymousClass)
-                    .filter(c -> {
-                        Class<?> enclosingClass = c;
-                        while(enclosingClass.getEnclosingClass() != null) {
-                            enclosingClass = enclosingClass.getEnclosingClass();
-                        }
-                        return changedJavaClassSet.contains(enclosingClass);
-                    })
-                    .map(c -> {
-                        File classpath = new File(c.getProtectionDomain().getCodeSource().getLocation().getFile());
-                        return new File(classpath, javaNameToPath(c.getName()) + ".class");
-                    })
-                    .collect(Collectors.toList());
-        }));
-        
+        // NOTE: Quite a hacky approach to collect all anonymous classes, required maven
+        // clean for reproducible result
+        Map<String, List<File>> packageToChangedAnonymousClassMap = packageToChangedClassesMap.entrySet().stream()
+                .collect(Collectors.toMap(Entry::getKey, it -> {
+                    String packageName = it.getKey();
+                    Set<Class<?>> changedJavaClassSet = new HashSet<>(it.getValue());
+                    Set<String> classNameSet = changedJavaClassSet.stream()
+                            .map(Class::getName)
+                            .collect(Collectors.toSet());
+                    return packageToChangedClassFilesMap.get(packageName).stream()
+                            .map(File::getParentFile)
+                            .distinct()
+                            .map(File::listFiles)
+                            .flatMap(Stream::of)
+                            .filter(File::isFile)
+                            .map(File::getName)
+                            .filter(iit -> iit.endsWith(".class"))
+                            .map(iit -> iit.substring(0, iit.length() - ".class".length()))
+                            .map(iit -> packageName + "." + iit)
+                            .filter(iit -> !classNameSet.contains(iit))
+                            .map(iit -> {
+                                try {
+                                    return classLoader.loadClass(iit);
+                                } catch (ClassNotFoundException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            })
+                            .filter(Class::isAnonymousClass)
+                            .filter(c -> {
+                                Class<?> enclosingClass = c;
+                                while (enclosingClass.getEnclosingClass() != null) {
+                                    enclosingClass = enclosingClass.getEnclosingClass();
+                                }
+                                return changedJavaClassSet.contains(enclosingClass);
+                            })
+                            .map(c -> {
+                                File classpath = new File(
+                                        c.getProtectionDomain().getCodeSource().getLocation().getFile());
+                                return new File(classpath, javaNameToPath(c.getName()) + ".class");
+                            })
+                            .collect(Collectors.toList());
+                }));
+
         // Merge 2 map
         return Stream.of(packageToChangedClassFilesMap, packageToChangedAnonymousClassMap)
                 .map(Map::entrySet)
                 .flatMap(Set::stream)
                 .collect(Collectors.toMap(
-                        Entry::getKey, 
-                        Entry::getValue, 
+                        Entry::getKey,
+                        Entry::getValue,
                         (val1, val2) -> Stream.of(val1, val2).flatMap(List::stream).collect(Collectors.toList())));
     }
 
     private void buildConfig(List<String> freeModules, Map<String, List<String>> dependentOnModuleMap,
-                             Map<String, List<File>> changedModuleFileMap, Map<String, ArtifactInfo> artifactInfoModuleMap,
-                             List<String> configPrefixes)
+            Map<String, List<File>> changedModuleFileMap, Map<String, ArtifactInfo> artifactInfoModuleMap,
+            List<String> configPrefixes)
             throws IOException {
         for (String module : freeModules) {
             File buildConfigFolder = getBuildConfigFolder(module);
@@ -528,7 +539,8 @@ public class CliBuildTool implements AutoCloseable {
                     createJarFile(getTargetConfigJarFile(module, artifactInfo), buildConfigFolder, null);
                 } else {
                     // NOTE: I shouldn't do this, but I'm too lazy anyway
-                    FileUtils.copyDirectory(buildConfigFolder, getTargetConfigJarFile(module, artifactInfo).getParentFile());
+                    FileUtils.copyDirectory(buildConfigFolder,
+                            getTargetConfigJarFile(module, artifactInfo).getParentFile());
                 }
             }
         }
@@ -665,7 +677,7 @@ public class CliBuildTool implements AutoCloseable {
     private File getDeletedNoteFile(String module) {
         return Paths.get(targetFolder.getAbsolutePath(), module, "notes", "deleted_changes").toFile();
     }
-    
+
     private File getTargetPatchJarFile(String module, ArtifactInfo info) {
         return Paths.get(targetFolder.getAbsolutePath(), module, "patch", info.getPatchName()).toFile();
     }
@@ -867,7 +879,7 @@ public class CliBuildTool implements AutoCloseable {
     }
 
     public static class DefaultCliGetArtifactInfo {
-        public static Function<List<String>, Map<String,ArtifactInfo>> getArtifactInfo(boolean interactive) {
+        public static Function<List<String>, Map<String, ArtifactInfo>> getArtifactInfo(boolean interactive) {
             return modules -> {
                 Map<String, ArtifactInfo> info;
                 if (interactive) {
@@ -886,8 +898,11 @@ public class CliBuildTool implements AutoCloseable {
 
                             info.put(module, ArtifactInfo.builder()
                                     .configName(StringUtils.isBlank(configFileName) ? "Config.jar" : configFileName)
-                                    .patchName(StringUtils.isBlank(patchJarFileName) ?  defaultPatchName : patchJarFileName)
-                                    .releasePackageName(StringUtils.isBlank(releasePackageZipFileName) ? "ReleasePackage.zip" : releasePackageZipFileName)
+                                    .patchName(
+                                            StringUtils.isBlank(patchJarFileName) ? defaultPatchName : patchJarFileName)
+                                    .releasePackageName(
+                                            StringUtils.isBlank(releasePackageZipFileName) ? "ReleasePackage.zip"
+                                                    : releasePackageZipFileName)
                                     .compress(!isServer)
                                     .build());
                         }
@@ -898,11 +913,11 @@ public class CliBuildTool implements AutoCloseable {
                         String moduleName = it.toLowerCase();
                         boolean isServer = moduleName.contains("server");
                         return ArtifactInfo.builder()
-                                    .configName("Config.jar")
-                                    .patchName(isServer ? "SPatch.jar" : "Patch.jar")
-                                    .releasePackageName("ReleasePackage.zip")
-                                    .compress(!isServer)
-                                    .build();
+                                .configName("Config.jar")
+                                .patchName(isServer ? "SPatch.jar" : "Patch.jar")
+                                .releasePackageName("ReleasePackage.zip")
+                                .compress(!isServer)
+                                .build();
                     }));
                 }
             };

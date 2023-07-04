@@ -21,13 +21,13 @@ public class PasswordField extends TextField {
             this.validators = new ArrayList<>();
         }
         JLabel inputLabel = new JLabel(label);
-        this.textField = new JPasswordField();
+        this.innerTextField = new JPasswordField();
 
-        setLayout(createLayout(inputLabel, textField, labelWidth, inputWidth, stretch, axis));
+        setLayout(createLayout(inputLabel, innerTextField, labelWidth, inputWidth, stretch, axis));
     }
 
     @Override
     public String getText() {
-        return new String(((JPasswordField) textField).getPassword());
+        return new String(((JPasswordField) innerTextField).getPassword());
     }
 }

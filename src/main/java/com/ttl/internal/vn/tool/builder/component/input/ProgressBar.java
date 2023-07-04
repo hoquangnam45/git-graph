@@ -1,8 +1,5 @@
 package com.ttl.internal.vn.tool.builder.component.input;
 
-import java.awt.BorderLayout;
-import java.awt.Dimension;
-
 import javax.swing.GroupLayout;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
@@ -10,35 +7,34 @@ import javax.swing.JProgressBar;
 
 public class ProgressBar extends JPanel {
     private JLabel statusLabel;
-    private JProgressBar progressBar;
+    private JProgressBar innerProgressBar;
 
     public ProgressBar() {
         super();
         statusLabel = new JLabel();
-        progressBar = new JProgressBar();
+        innerProgressBar = new JProgressBar();
 
         GroupLayout layout = new GroupLayout(this);
         setLayout(layout);
         layout.setAutoCreateGaps(true);
-        
+
         layout.setHorizontalGroup(layout.createParallelGroup()
-            .addComponent(statusLabel, GroupLayout.Alignment.CENTER)
-            .addComponent(progressBar)
-        );
+                .addComponent(statusLabel, GroupLayout.Alignment.CENTER)
+                .addComponent(innerProgressBar));
 
         layout.setVerticalGroup(layout.createSequentialGroup()
-            .addComponent(statusLabel)
-            .addComponent(progressBar));
+                .addComponent(statusLabel)
+                .addComponent(innerProgressBar));
     }
 
     public void setMaximum(int maximum) {
-        progressBar.setMaximum(maximum);
+        innerProgressBar.setMaximum(maximum);
     }
-    
+
     public void setValue(int value) {
-        progressBar.setValue(value);
+        innerProgressBar.setValue(value);
     }
-    
+
     public void setStatus(String status) {
         statusLabel.setText(status);
     }
