@@ -10,6 +10,7 @@ import java.util.Optional;
 import java.util.Vector;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Flow;
+import java.util.concurrent.Future;
 
 import javax.swing.BorderFactory;
 import javax.swing.GroupLayout;
@@ -57,6 +58,7 @@ import static org.eclipse.jgit.lib.ProgressMonitor.UNKNOWN;
 
 @Setter
 @Getter
+// NOTE: Kill transport
 public class GitCloneDialog extends JDialog implements IDialog {
     private static class GitCloneProgressMonitor implements ProgressMonitor {
         private final GitCloneTask gitCloneTask;
@@ -91,7 +93,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
 
         @Override
         public boolean isCancelled() {
-            return textProgressMonitor.isCancelled();
+            return gitCloneTask.isCancel();
         }
 
         @Override
@@ -393,12 +395,13 @@ public class GitCloneDialog extends JDialog implements IDialog {
         private final String uri;
         private final File targetFolder;
         private final GitCloneDialog dialog;
-        private final Vector<GitCloneSubTask> subtasks;
+        private final List<GitCloneSubTask> subtasks;
         private Transport transport;
 
-        private CompletableFuture<Void> cloningWork;
         private GitCloneSubTask currentTask;
         private Flow.Subscriber<? super Task> subscriber;
+        private boolean cancel;
+        private boolean error;
         
         public GitCloneTask(String username, String password, String uri, File targetFolder, GitCloneDialog dialog) {
             this.subtasks = new Vector<>();
@@ -430,7 +433,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
         
         @Override
         public String explainTask() {
-            return Optional.ofNullable(currentTask).map(Task::explainTask).orElse("");
+            return Optional.ofNullable(currentTask).map(Task::explainTask).orElse(null);
         }
 
         @Override
@@ -445,50 +448,32 @@ public class GitCloneDialog extends JDialog implements IDialog {
 
         @Override
         public int status() {
-            // Error -> if 1 of the subtasks have error or not start
-            // Cancel -> if 1 of the task is canceled
-            // Done -> When all the subtask is done
-            // Not start -> First start
-            // In progress -> everything else
-            return subtasks.stream().map(Task::status).map(it -> TaskStatus.values()[it]).reduce(TaskStatus.NOT_START, (acc, val) -> {
-                if (TaskStatus.NOT_START.equals(val)) {
-                    // Not possible for subtask to have this state;
-                    return TaskStatus.ERROR;
-                }
-                if (TaskStatus.ERROR.equals(val) || TaskStatus.ERROR.equals(acc)) {
-                    return TaskStatus.ERROR;
-                }
-                if (TaskStatus.CANCEL.equals(acc) || TaskStatus.CANCEL.equals(val)) {
-                    return TaskStatus.CANCEL;
-                } else {
-                    // acc -> in_progress, done, not_start, val -> in_progress, done
-                    if (TaskStatus.IN_PROGRESS.equals(val)) {
-                        return TaskStatus.IN_PROGRESS;
-                    }
-
-                    // acc -> in_progress, done, not_start, val -> done
-                    if (TaskStatus.DONE.equals(acc) || TaskStatus.NOT_START.equals(acc)) {
-                        return TaskStatus.DONE;
-                    }
-                    
-                    // acc -> in_progress, val -> done
-                    return TaskStatus.IN_PROGRESS;
-                }
-            }).ordinal();
+            if (error) {
+                return TaskStatus.ERROR.ordinal();
+            }
+            if (cancel) {
+                return TaskStatus.CANCEL.ordinal();
+            }
+            boolean inProgress = subtasks.stream().map(Task::status).anyMatch(it -> it == TaskStatus.IN_PROGRESS.ordinal());
+            if (inProgress) {
+                return TaskStatus.IN_PROGRESS.ordinal();
+            }
+            return TaskStatus.NOT_START.ordinal();
         }
 
         @Override
         public boolean cancel() {
-            Optional.ofNullable(cloningWork).filter(not(CompletableFuture::isDone)).ifPresent(it -> it.cancel(true));
+            // NOTE: Settting cancel will cause side-effect to ProgressMonitor
+            cancel = true;
             subtasks.forEach(GitCloneSubTask::cancel);
             return true;
         }
 
         @Override
         public boolean start() {
-            this.cloningWork = SwingGraphicUtil.run(() -> {
+            SwingGraphicUtil.run(() -> {
                 try {
-                    GitUtil.cloneGitRepo(uri, targetFolder, username, password, new GitCloneProgressMonitor(this, new PrintWriter(System.out)), transport -> this.transport = transport);
+                    GitUtil.cloneGitRepo(uri, targetFolder, username, password, new GitCloneProgressMonitor(this, new PrintWriter(System.out)));
                     subscriber.onComplete();
                 } catch (GitAPIException e) {
                     throw new RuntimeException(e);
@@ -499,8 +484,8 @@ public class GitCloneDialog extends JDialog implements IDialog {
         
         @Override
         public boolean stopExceptionally(Throwable e) {
-            Optional.ofNullable(cloningWork).filter(not(CompletableFuture::isDone)).ifPresent(it -> it.cancel(true));
-            
+            cancel();
+            error = true;
             subtasks.forEach(subtask -> subtask.stopExceptionally(e));
             subscriber.onError(e);
             return true;

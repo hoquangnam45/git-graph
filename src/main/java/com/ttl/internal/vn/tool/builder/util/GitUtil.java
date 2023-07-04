@@ -225,7 +225,7 @@ public class GitUtil implements AutoCloseable {
 
     public static Git cloneGitRepo(String uri, File targetDir, String username, String password)
             throws GitAPIException {
-        return cloneGitRepo(uri, targetDir, username, password, new TextProgressMonitor(new PrintWriter(System.out)), null);
+        return cloneGitRepo(uri, targetDir, username, password, new TextProgressMonitor(new PrintWriter(System.out)));
     }
 
     public static String getRepo(String gitUrl) throws URISyntaxException {
@@ -286,11 +286,10 @@ public class GitUtil implements AutoCloseable {
     }
 
     public static Git cloneGitRepo(String uri, File targetDir, String username, String password,
-                                            ProgressMonitor progressMonitor, TransportConfigCallback transportConfigCallback)
+                                            ProgressMonitor progressMonitor)
             throws GitAPIException {
         CloneCommand command = Git.cloneRepository().setURI(uri)
                 .setProgressMonitor(progressMonitor)
-                .setTransportConfigCallback(transportConfigCallback)
                 .setDirectory(targetDir);
         if (StringUtils.isNotBlank(username) && StringUtils.isNotBlank(password)) {
             command = command.setCredentialsProvider(new UsernamePasswordCredentialsProvider(username, password));
