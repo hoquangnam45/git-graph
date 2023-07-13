@@ -1,7 +1,5 @@
 package com.ttl.internal.vn.tool.builder.component.dialog;
 
-import static org.eclipse.jgit.lib.ProgressMonitor.UNKNOWN;
-
 import java.awt.BorderLayout;
 import java.io.File;
 import java.io.PrintWriter;
@@ -9,8 +7,6 @@ import java.io.Writer;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-import java.util.Vector;
-import java.util.concurrent.Flow;
 
 import javax.swing.BorderFactory;
 import javax.swing.GroupLayout;
@@ -22,13 +18,13 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.WindowConstants;
 
+import com.ttl.internal.vn.tool.builder.task.*;
+import com.ttl.internal.vn.tool.builder.util.SwingGraphicUtil;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.lib.ProgressMonitor;
 import org.eclipse.jgit.lib.TextProgressMonitor;
-import org.eclipse.jgit.transport.Transport;
 
 import com.ttl.internal.vn.tool.builder.component.IDialog;
 import com.ttl.internal.vn.tool.builder.component.Session;
@@ -41,12 +37,8 @@ import com.ttl.internal.vn.tool.builder.component.input.ProgressBar;
 import com.ttl.internal.vn.tool.builder.component.input.TextField;
 import com.ttl.internal.vn.tool.builder.component.input.TextValidator;
 import com.ttl.internal.vn.tool.builder.component.input.ValidatorError;
-import com.ttl.internal.vn.tool.builder.task.DefaultSubscriber;
-import com.ttl.internal.vn.tool.builder.task.ITaskController;
-import com.ttl.internal.vn.tool.builder.task.Task;
 import com.ttl.internal.vn.tool.builder.util.GitUtil;
 import com.ttl.internal.vn.tool.builder.util.GitUtil.CredentialEntry;
-import com.ttl.internal.vn.tool.builder.util.SwingGraphicUtil;
 
 import lombok.Getter;
 import lombok.Setter;
@@ -55,48 +47,6 @@ import lombok.Setter;
 @Getter
 // NOTE: Kill transport
 public class GitCloneDialog extends JDialog implements IDialog {
-    private static class GitCloneProgressMonitor implements ProgressMonitor {
-        private final GitCloneTask gitCloneTask;
-        private final TextProgressMonitor textProgressMonitor;
-
-        public GitCloneProgressMonitor(GitCloneTask gitCloneTask, Writer outputWriter) {
-            this.gitCloneTask = gitCloneTask;
-            this.textProgressMonitor = new TextProgressMonitor(outputWriter);
-        }
-
-        @Override
-        public void beginTask(String title, int totalWork) {
-            gitCloneTask.beginTask(new GitCloneSubTask(title, totalWork));
-            textProgressMonitor.beginTask(title, totalWork);
-        }
-
-        @Override
-        public void update(int completed) {
-            gitCloneTask.update(completed);
-            textProgressMonitor.update(completed);
-        }
-
-        @Override
-        public void endTask() {
-            textProgressMonitor.endTask();
-        }
-
-        @Override
-        public void start(int totalTasks) {
-            textProgressMonitor.start(totalTasks);
-        }
-
-        @Override
-        public boolean isCancelled() {
-            return gitCloneTask.isCancel();
-        }
-
-        @Override
-        public void showDuration(boolean enabled) {
-            textProgressMonitor.showDuration(enabled);
-        }
-    }
-
     public GitCloneDialog(JFrame frame) {
         super();
         this.frame = frame;
@@ -247,22 +197,30 @@ public class GitCloneDialog extends JDialog implements IDialog {
                     }
 
                     this.gitCloneTask = new GitCloneTask(usernameField.getText(), passwordField.getText(),
-                            repoField.getText(), cloneFileField.getSelectedFile(), this);
+                            repoField.getText(), cloneFileField.getSelectedFile());
+                    gitCloneTask.setProgressMonitor(new GitCloneProgressMonitor(gitCloneTask, new PrintWriter(System.out)));
                     gitCloneTask.subscribe(new DefaultSubscriber<>() {
                         @Override
+                        public void onNext(Task task) {
+                            progressBar.setMaximum(100);
+                            progressBar.setValue((int) (100. * task.percentage()));
+                            progressBar.setStatus(task.explainTask() + " - " + (int) (task.percentage() * 100.) + "%");
+                        }
+                        
+                        @Override
                         public void onComplete() {
-                            try {
-                                Session.getInstance().setGitPassword(usernameField.getText());
-                                Session.getInstance().setGitUsername(passwordField.getText());
-                                gitCloneTask.getDialog().dispose();
-                            } finally {
-                                inputGroup.setEditable(true);
-                                inputGroup2.setEditable(true);
-                                cloneBtn.setEnabled(true);
-                            }
+                            Session.getInstance().setGitPassword(usernameField.getText());
+                            Session.getInstance().setGitUsername(passwordField.getText());
+                            dispose();
                         }
                     });
-                    gitCloneTask.start();
+                    SwingGraphicUtil.supply(() -> {
+                        try {
+                            return gitCloneTask.start();
+                        } catch (Exception ex1) {
+                            throw new RuntimeException(ex1);
+                        }
+                    });
                 } else {
                     throw new ValidationException(errors.get(0));
                 }
@@ -285,7 +243,9 @@ public class GitCloneDialog extends JDialog implements IDialog {
     @Override
     public void handleException(Exception e) {
         logger.error(e.getMessage(), e);
-        gitCloneTask.stopExceptionally(e);
+        inputGroup.setEditable(true);
+        inputGroup2.setEditable(true);
+        cloneBtn.setEnabled(true);
         JOptionPane.showMessageDialog(this, e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         if (e instanceof ValidationException) {
             ((ValidationException) e).getError().getSrc().requestFocus();
@@ -294,220 +254,5 @@ public class GitCloneDialog extends JDialog implements IDialog {
 
     public File getClonedFolder() {
         return cloneFileField.getSelectedFile();
-    }
-
-    public static class GitCloneSubTask extends Task implements ITaskController {
-        private int doneWork;
-
-        private Flow.Subscriber<? super Task> subscriber;
-
-        private TaskStatus status = TaskStatus.NOT_START;
-        private final int totalWork;
-        private final String title;
-
-        public GitCloneSubTask(String title, int totalWork) {
-            super();
-            this.totalWork = totalWork;
-            this.title = title;
-        }
-
-        @Override
-        public boolean update(int doneWork) {
-            if (isStop()) {
-                return false;
-            }
-            this.doneWork += doneWork;
-            if (this.doneWork == totalWork) {
-                status = TaskStatus.DONE;
-            }
-            Optional.ofNullable(subscriber).ifPresent(l -> l.onNext(this));
-            return true;
-        }
-
-        @Override
-        public boolean done() {
-            this.status = TaskStatus.DONE;
-            Optional.ofNullable(subscriber).ifPresent(Flow.Subscriber::onComplete);
-            return true;
-        }
-
-        @Override
-        public String explainTask() {
-            return title;
-        }
-
-        @Override
-        public int totalWork() {
-            if (totalWork != UNKNOWN) {
-                return totalWork;
-            } else {
-                return 1;
-            }
-        }
-
-        @Override
-        public int doneWork() {
-            if (totalWork != UNKNOWN) {
-                return doneWork;
-            } else {
-                return 0;
-            }
-        }
-
-        @Override
-        public int status() {
-            return status.ordinal();
-        }
-
-        @Override
-        public boolean start() {
-            this.status = TaskStatus.IN_PROGRESS;
-            return true;
-        }
-
-        @Override
-        public boolean stopExceptionally(Throwable e) {
-            this.status = TaskStatus.ERROR;
-            return true;
-        }
-
-        @Override
-        public boolean cancel() {
-            this.status = TaskStatus.CANCEL;
-            return true;
-        }
-
-        @Override
-        public void subscribe(Flow.Subscriber<? super Task> subscriber) {
-            this.subscriber = subscriber;
-        }
-    }
-
-    @Getter
-    public static class GitCloneTask extends Task implements ITaskController {
-        private final String username;
-        private final String password;
-        private final String uri;
-        private final File targetFolder;
-        private final GitCloneDialog dialog;
-        private final List<GitCloneSubTask> subtasks;
-        private Transport transport;
-
-        private GitCloneSubTask currentTask;
-        private Flow.Subscriber<? super Task> subscriber;
-        private boolean cancel;
-        private boolean error;
-
-        public GitCloneTask(String username, String password, String uri, File targetFolder, GitCloneDialog dialog) {
-            this.subtasks = new Vector<>();
-            this.username = username;
-            this.password = password;
-            this.uri = uri;
-            this.targetFolder = targetFolder;
-            this.dialog = dialog;
-        }
-
-        public void beginTask(GitCloneSubTask currentTask) {
-            // Done previous task
-            Optional.ofNullable(this.currentTask).ifPresent(GitCloneSubTask::done);
-            this.currentTask = currentTask;
-            this.subtasks.add(currentTask);
-            // Start new task
-            currentTask.subscribe(new DefaultSubscriber<>() {
-                @Override
-                public void onNext(Task item) {
-                    SwingGraphicUtil.updateUI(() -> {
-                        int percentage = (int) Math.round(percentage());
-                        dialog.getProgressBar().setValue(percentage);
-                        dialog.getProgressBar().setStatus(explainTask() + ": " + percentage + "%");
-                    });
-                }
-            });
-            currentTask.start();
-        }
-
-        @Override
-        public String explainTask() {
-            return Optional.ofNullable(currentTask).map(Task::explainTask).orElse(null);
-        }
-
-        @Override
-        public int totalWork() {
-            return subtasks.stream().map(it -> it.scaling() * it.totalWork()).map(Math::ceil).map(Integer.class::cast)
-                    .reduce(0, Integer::sum);
-        }
-
-        @Override
-        public int doneWork() {
-            return subtasks.stream().filter(it -> it.status() != TaskStatus.IN_PROGRESS.ordinal())
-                    .map(it -> it.scaling() * it.totalWork()).map(Math::ceil).map(Integer.class::cast)
-                    .reduce(0, Integer::sum);
-        }
-
-        @Override
-        public int status() {
-            if (error) {
-                return TaskStatus.ERROR.ordinal();
-            }
-            if (cancel) {
-                return TaskStatus.CANCEL.ordinal();
-            }
-            boolean inProgress = subtasks.stream().map(Task::status)
-                    .anyMatch(it -> it == TaskStatus.IN_PROGRESS.ordinal());
-            if (inProgress) {
-                return TaskStatus.IN_PROGRESS.ordinal();
-            }
-            return TaskStatus.NOT_START.ordinal();
-        }
-
-        @Override
-        public boolean cancel() {
-            // NOTE: Settting cancel will cause side-effect to ProgressMonitor
-            cancel = true;
-            subtasks.forEach(GitCloneSubTask::cancel);
-            return true;
-        }
-
-        @Override
-        public boolean start() {
-            SwingGraphicUtil.run(() -> {
-                try {
-                    GitUtil.cloneGitRepo(uri, targetFolder, username, password,
-                            new GitCloneProgressMonitor(this, new PrintWriter(System.out)));
-                    subscriber.onComplete();
-                } catch (GitAPIException e) {
-                    throw new RuntimeException(e);
-                }
-            });
-            return true;
-        }
-
-        @Override
-        public boolean stopExceptionally(Throwable e) {
-            cancel();
-            error = true;
-            subtasks.forEach(subtask -> subtask.stopExceptionally(e));
-            subscriber.onError(e);
-            return true;
-        }
-
-        @Override
-        public double percentage() {
-            return Optional.ofNullable(currentTask).map(Task::percentage).orElse(0.);
-        }
-
-        @Override
-        public boolean update(int doneWork) {
-            Optional.ofNullable(currentTask).ifPresent(it -> {
-                it.update(doneWork);
-                subscriber.onNext(this);
-            });
-            return true;
-        }
-
-        @Override
-        public void subscribe(Flow.Subscriber<? super Task> subscriber) {
-            this.subscriber = subscriber;
-        }
     }
 }

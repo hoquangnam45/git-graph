@@ -26,6 +26,7 @@ import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFact
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.maven.model.building.ModelBuildingException;
 import org.apache.maven.shared.invoker.MavenInvocationException;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.api.errors.InvalidRemoteException;
 import org.eclipse.jgit.errors.TransportException;
@@ -137,13 +138,6 @@ public class App {
                                         .hasArg(false)
                                         .build());
                         addOption(Option.builder()
-                                        .desc("The pom file that will be used to calculate the build order of the project artifacts. This is required for building the subproject correctly and getting the classpaths and setting the artifact name. Default: ${clonedDir}/pom.xml")
-                                        .longOpt("projectPom")
-                                        .required(false)
-                                        .hasArg(true)
-                                        .numberOfArgs(1)
-                                        .build());
-                        addOption(Option.builder()
                                         .desc("The settings.xml file that will be used to fetch the remote dependencies. Default: ~/.m2/settings.xml")
                                         .longOpt("m2SettingsXml")
                                         .required(false)
@@ -196,28 +190,23 @@ public class App {
                 }
         };
 
-        // TODO: Add progress bar
+        // TODO: Add ability to cancel mid build -> Implemented
+        // TODO: Add progress bar -> Implemented
         // TODO: Add note.txt for delete change types -> Implemented
         // TODO: Hide fetch button -> Implemented
-        // TODO: Lock combobox from changing branch, build from chosen commit to working
-        // dir -> Implemented
+        // TODO: Lock combobox from changing branch, build from chosen commit to working dir -> Implemented
         // TODO: Hide checkout btn -> Implemented
-        // TODO: Recheck implementation when removing tab in UI result in
-        // nullpointerexception (NOTE: from 2 tab for getting artifact info from server
-        // and client to getting artifact info for client)
         // TODO: Do not create jar file for server build -> Implemented
-        // TODO: Remove patch and config folder from artifact for release package build
-        // -> Implemented
-        // TODO: Popup for artifact info or switch to new panel
+        // TODO: Remove patch and config folder from artifact for release package build -> Implemented
+        // TODO: Popup for artifact info or switch to new panel -> Implemented
         // TODO: Update README.MD
-        // TODO: Remove Manifest from config jar -> Implemented, not checked
-        // TODO: Recheck why branch that had been removed still show up in combobox ->
-        // Git problem, ignored
-        // TODO: Add current working directory mode -> Implemented, not checked
+        // TODO: Remove Manifest from config jar -> Implemented
+        // TODO: Recheck why branch that had been removed still show up in combobox -> Git problem, ignored
+        // TODO: Add current working directory mode -> Implemented
         public static void main(String[] args) throws ParseException, InvalidRemoteException, TransportException,
-                        GitAPIException, IOException, ClassNotFoundException, MavenInvocationException,
-                        ModelBuildingException,
-                        UnsupportedLookAndFeelException {
+                GitAPIException, IOException, ClassNotFoundException, MavenInvocationException,
+                ModelBuildingException,
+                UnsupportedLookAndFeelException, XmlPullParserException, InterruptedException {
                 CommandLine commandLine = parseArgs(args, options);
 
                 configureLog4j2(commandLine.getOptionValue("logDirectory", System.getProperty("java.io.tmpdir")));
@@ -239,8 +228,6 @@ public class App {
                         boolean buildConfigJar = commandLine.hasOption("buildConfigJar");
                         boolean buildPatch = commandLine.hasOption("buildPatch");
                         boolean buildReleasePackage = commandLine.hasOption("buildReleasePackage");
-                        File projectPom = Optional.ofNullable(commandLine.getOptionValue("projectPom")).map(File::new)
-                                        .orElse(null);
                         File m2SettingsXml = new File(commandLine.getOptionValue("m2SettingsXml"));
                         boolean fetch = commandLine.hasOption("fetch");
                         String databaseChangePrefixes = commandLine.getOptionValue("databaseChangePrefixes");
@@ -274,13 +261,12 @@ public class App {
                                         useWorkingDirectory,
                                         configPrefixes,
                                         databaseChangePrefixes,
-                                        projectPom,
                                         javaHome,
                                         patchFile,
                                         m2SettingsXml,
                                         DefaultCliGetArtifactInfo.getArtifactInfo(interactive))) {
                                 cliBuildTool.startBuildEnvironment();
-                                cliBuildTool.build(fetch);
+                                cliBuildTool.build(fetch).start();
                         }
                 }
         }
