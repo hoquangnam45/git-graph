@@ -16,10 +16,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import com.ttl.internal.vn.tool.builder.cli.CliBuildTool;
+import com.ttl.internal.vn.tool.builder.util.SwingGraphicUtil;
 import org.apache.commons.lang3.StringUtils;
 
 import com.ttl.internal.vn.tool.builder.git.GitCommit;
@@ -28,6 +31,7 @@ import com.ttl.internal.vn.tool.builder.util.GitUtil.CredentialEntry;
 
 import lombok.Getter;
 import lombok.Setter;
+import org.eclipse.jgit.diff.DiffEntry;
 
 @Getter
 @Setter
@@ -46,6 +50,7 @@ public class Session implements AutoCloseable {
     private GitCommit baseCommit;
     private GitCommit targetCommit;
     private Boolean useWorkingDirectory;
+    private String entryFilter;
 
     private Map<String, List<Consumer<?>>> listeners = new HashMap<>();
 
@@ -130,6 +135,27 @@ public class Session implements AutoCloseable {
             }
         }
         return credentials;
+    }
+
+    public CompletableFuture<List<DiffEntry>> getDiff() throws IOException {
+        return SwingGraphicUtil.supply(() -> {
+            try {
+                return CliBuildTool.getDiff(
+                        gitUtil,
+                        baseCommit.getHash(),
+                        Optional.ofNullable(targetCommit).map(GitCommit::getHash).orElse(null),
+                        entryFilter,
+                        useWorkingDirectory);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        });
+    }
+
+    public void setEntryFilter(String filter) {
+        this.entryFilter = Optional.ofNullable(filter)
+                .filter(StringUtils::isNotBlank)
+                .orElse(null);
     }
 
     public void storeCredentialEntry(String username, String password, String url)

@@ -1,5 +1,6 @@
 package com.ttl.internal.vn.tool.builder.util;
 
+import java.lang.reflect.InvocationTargetException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -15,6 +16,10 @@ public class SwingGraphicUtil {
 
     public static void updateUI(Runnable runnable) {
         SwingUtilities.invokeLater(runnable);
+    }
+
+    public static void updateUIBlocking(Runnable runnable) throws InterruptedException, InvocationTargetException {
+        SwingUtilities.invokeAndWait(runnable);
     }
 
     public static <T> CompletableFuture<T> supply(Supplier<T> supplier) {

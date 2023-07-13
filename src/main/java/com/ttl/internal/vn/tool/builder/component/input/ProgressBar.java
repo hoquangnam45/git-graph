@@ -10,6 +10,10 @@ public class ProgressBar extends JPanel {
     private JProgressBar innerProgressBar;
 
     public ProgressBar() {
+        this(GroupLayout.Alignment.CENTER);
+    }
+
+    public ProgressBar(GroupLayout.Alignment alignment) {
         super();
         statusLabel = new JLabel();
         innerProgressBar = new JProgressBar();
@@ -19,7 +23,7 @@ public class ProgressBar extends JPanel {
         layout.setAutoCreateGaps(true);
 
         layout.setHorizontalGroup(layout.createParallelGroup()
-                .addComponent(statusLabel, GroupLayout.Alignment.CENTER)
+                .addComponent(statusLabel, alignment)
                 .addComponent(innerProgressBar));
 
         layout.setVerticalGroup(layout.createSequentialGroup()

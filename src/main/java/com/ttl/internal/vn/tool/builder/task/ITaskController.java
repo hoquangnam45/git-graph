@@ -1,32 +1,16 @@
 package com.ttl.internal.vn.tool.builder.task;
 
+// Control the task
 public interface ITaskController {
-    // Control the task
-    default boolean cancel() throws Exception {
-        throw new UnsupportedOperationException();
-    }
+    // Mark this task as cancelled
+    boolean cancel() throws Exception;
 
-    default boolean pause() throws Exception {
-        throw new UnsupportedOperationException();
-    }
+    // Cancel this task and mark it as error
+    boolean stopExceptionally(Throwable e) throws Throwable;
 
-    default boolean resume() throws Exception {
-        throw new UnsupportedOperationException();
-    }
+    // Mark this task as in progress and run it
+    boolean start() throws Exception;
 
-    default boolean done() throws Exception {
-        throw new UnsupportedOperationException();
-    }
-
-    default boolean stopExceptionally(Throwable e) throws Exception {
-        throw new UnsupportedOperationException();
-    }
-
-    default boolean start() throws Exception {
-        throw new UnsupportedOperationException();
-    }
-
-    default boolean update(int doneWork) {
-        throw new UnsupportedOperationException();
-    }
+    // Mark this task as done
+    boolean done() throws Exception;
 }
