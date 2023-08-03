@@ -101,6 +101,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
         entryFilterField.setVisible(session.getUseWorkingDirectory());
 
         this.gitTreeView = new GitTreeView(new GitWalk(gitUtil));
+        gitTreeView.setDiffToWorkingDirectory(session.getUseWorkingDirectory());
         refreshGitRelatedUI();
 
         this.diffView = new DiffView();
@@ -112,7 +113,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
         btnGroupLayout.setAutoCreateGaps(true);
         btnPanel.setLayout(btnGroupLayout);
         this.checkOutButton = new Button("Checkout commit");
-        checkOutButton.setVisible(false);
+        checkOutButton.setVisible(!session.getUseWorkingDirectory());
         this.fetchButton = new Button("Fetch");
         this.refreshButton = new Button("Sync git view");
         btnGroupLayout.setHorizontalGroup(btnGroupLayout.createSequentialGroup()
