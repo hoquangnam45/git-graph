@@ -393,7 +393,7 @@ public class CliBuildTool implements AutoCloseable {
             }
 
             @Override
-            public boolean start() throws InterruptedException {
+            public synchronized boolean start() throws InterruptedException {
                 CliBuildToolBuildContext buildCtx = (CliBuildToolBuildContext) buildTask.getBuildCtx();
                 Map<String, List<String>> classpathMap = new HashMap<>();
                 buildCtx.setClasspathMap(classpathMap);
@@ -428,7 +428,7 @@ public class CliBuildTool implements AutoCloseable {
                         classpathMapFuture.cancel(true);
                         mavenTask.cancel();
                     } else {
-                        sleep(100);
+                        wait(100);
                     }
                 }
                 try {
