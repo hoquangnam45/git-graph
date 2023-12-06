@@ -1,11 +1,11 @@
 # How to use this tool
 
-## Setup pom files for each project
+## Setup om files for each project
 
-- Setup a project pom for each specific company and artifact that you want to build. The
+- Set up a project pom for each specific company and artifact that you want to build. The
 pom for will be used to calculate the classpath, and build the artifact
 
-- Here is a sample template for build you can modified your self
+- Here is a sample template for build you can modify your self
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -40,41 +40,68 @@ pom for will be used to calculate the classpath, and build the artifact
         <module>VNClient</module>
         <module>TPSClientBuild</module>
     </modules>
-</project>%
+</project>
 ```
-## Compile this tool to get executable jar (Optional)
 
-- Run `mvn clean compile assembly:single` to build the tool
-- Run `java -jar <path-to-jar> -ui` for UI mode or `java -jar <path-to-jar> --help` for what flags can be used to run in cli mode
-- Here is a example command to build your package using cli mode for already cloned project
+## Step to run the tool
+
+- Download java 11
+- [Download the tool](https://gitlab.tx-tech.com/internal-vn-tool/release-builder/-/releases)
+- Setup bash alias for easy invocation of the tool:
 ```bash
-java -jar ReleaseBuilder-0.0.1-SNAPSHOT-jar-with-dependencies.jar -fetch -updateSnapshot --clonedDir /tmp/buildSrc --artifactFolder /tmp/buildArtifact -buildReleasePackage --gitUser <your-git-user> --gitPassword <your-git-password> --m2SettingsXml <custom-setting-xml-if-not-default> --baseRef <startingRef> --targetRef <endRef>
+echo "alias java11=<path-to-your-java-11-binary>" >> ~/.bashrc 
+```
+- Compile this tool to get executable jar (Optional)
+  - Run `mvn clean compile assembly:single` to build the tool
+  - Run `java -jar <path-to-jar> -ui` for UI mode or `java -jar <path-to-jar> --help` for what flags can be used to run in cli mode
+  - *(Optional)* Here is a example one-line command to build your package in cli mode for already cloned project
+    ```bash
+    java11 -jar ReleaseBuilder-0.0.1-SNAPSHOT-jar-with-dependencies.jar -fetch -updateSnapshot --clonedDir /tmp/buildSrc --artifactFolder /tmp/buildArtifact -buildReleasePackage --gitUser <your-git-user> --gitPassword <your-git-password> --m2SettingsXml <custom-setting-xml-if-not-default> --baseRef <startingRef> --targetRef <endRef>
+    ```
+- Run the tools in UI mode
+```bash
+java11 -jar ReleaseBuilder-0.0.1-SNAPSHOT-jar-with-dependencies.jar -ui
 ```
 
-# Internal working of the tools
+# How to build? (UI)
 
-When building the artifact for the project, the tools will do the following
+- Open local repo, then select your project
 
-<ol>
-  <li>Prepare your local repo for the build</li>
-    <ol style="list-style-type: upper-alpha">
-        <li>Save a reference to your current HEAD</li>
-        <li>Stash any modifications (including untracked files and staging indexes)</li>
-        <li>Apply git patch file (if specify)</li>
-        <li>Checkout target ref</li>
-    </ol>
-  <li>Copy the company-specific project pom to the repo</li>
-  <li>Use it to build the classfile and classpath. NOTE: if you want to ignore compilation errors of submodules. Refer to the <a href="#faq">FAQ</a></li>
-  <li>Calculate the diff between target commit and base commit, and <u><b>FILTER OUT</b></u> any  changes outside the module defined in the project-company pom</li>
-  <li>Base on the diff, it will locate the class location using the calculated classpaths</li>
-  <li>Copy it to the classes folder inside the artifact folder</li>
-  <li>Zip the classes folder to create the ${artifactId}.jar</li>
-  <li>Checkout your previous HEAD </li>
-</ol>
+ ![step_1.png](images%2Fstep_1.png)
+
+  It should look like this
+
+  ![step_2.png](images%2Fstep_2.png)
+
+- Switch your project to the desired target commit using your git tool of choice
+- Press *Sync git view* to refresh the git tree UI
+- Search your commit hash in the *Seach commit* bar
+- Select your base commit, it will build from this base commit to your target commit
+- Recheck all the diff entry
+
+  ![step_3.png](images%2Fstep_3.png)
+
+- *(Optional)* Filter out all unwanted changes using regex in *Filter entry regex* bar, focus out the bar for UI to update 
+- Config your build
+  - *Build patch*: will output java patch.jar only
+  - *Build config*: will output all your config changes
+  - *Build release package*: Combine patch + config + db change and package it to a zip file
+  - *Maven settings xml file*: Change this if you use different name for your settings.xml
+- Build. 
+
+  ![step_4.png](images%2Fstep_4.png)
+
+- If successfully built it should look like this
+
+  ![step_5.png](images%2Fstep_5.png)
+
+- Change your build artifact name, or accept default name, after that you can open your artifact folder
+
+  ![step_6.png](images%2Fstep_6.png)
 
 # How to debug the builder
 
-By default, exceptions will be logged to /tmp/error.log, you can check the log to know why the build is not successful. You can also see what's it doing on console output to get more context
+By default, it will output to terminal, you can check what it doing there as well as exceptions will be logged to /tmp/error.log, you can check the log to know why the build is not successful.
 
 ## FAQ
 
@@ -104,4 +131,21 @@ For java files, if your change is outside the module specified in the project po
 
 - It got git index.lock error
 
-Because it crash while not clean up the lock yet so it's not able to interact with git further until that lock is removed. Delete the file .git/index.lock then retry
+Because it crashes while not clean up the lock yet so it's not able to interact with git further until that lock is removed. Delete the file .git/index.lock then retry
+
+- It has unwanted changes
+
+You can filter out the changes then rebuild it again
+
+- It contains more than xxxBuild artifacts in the popup
+
+By default, it will collect all top-level module (module with no one else depend on it to determine the list of build artifacts), check your top-level pom and all your module pom as well as run
+
+```bash
+mvn clean compile dependency:build-classpath
+```
+
+to make sure that the erroneous artifact should exist in the classpath of some other module.
+
+
+
