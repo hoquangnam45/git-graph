@@ -5,7 +5,6 @@ import lombok.Getter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Flow;
 
 @Getter
 public abstract class AbstractGitTask extends DiscreteTask implements ITaskController, IGitTask {

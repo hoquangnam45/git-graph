@@ -1,13 +1,8 @@
 package com.ttl.internal.vn.tool.builder.task;
 
-import com.ttl.internal.vn.tool.builder.task.ITask;
-import com.ttl.internal.vn.tool.builder.task.ITaskController;
-import com.ttl.internal.vn.tool.builder.task.Task;
-
 import java.util.*;
-import java.util.concurrent.Flow;
+import com.ttl.internal.vn.tool.builder.component.Flow;
 
-import static java.util.function.Predicate.not;
 
 
 public abstract class BuildTask extends DiscreteTask {
@@ -30,7 +25,7 @@ public abstract class BuildTask extends DiscreteTask {
     public abstract void cleanup() throws Exception;
 
     public void addSubTask(DiscreteTask task) {
-        task.subscribe(new DefaultSubscriber<>() {
+        task.subscribe(new DefaultSubscriber<Task>() {
             @Override
             public void onNext(Task item) {
                 Optional.ofNullable(subscriber).ifPresent(it -> it.onNext(item));
@@ -77,7 +72,7 @@ public abstract class BuildTask extends DiscreteTask {
     public boolean stopExceptionally(Throwable e) {
         cancel();
         error = true;
-        tasks.stream().filter(not(Task::isStop)).forEach(task -> {
+        tasks.stream().filter(task -> !task.isStop()).forEach(task -> {
             try {
                 task.cancel();
             } catch (Exception ex) {

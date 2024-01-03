@@ -11,6 +11,7 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Future;
@@ -157,25 +158,25 @@ public class GitUtil implements AutoCloseable {
 
     public List<DiffEntry> getDiff(String baseRef, String targetRef) throws IOException {
         try (
-                var diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
-                var revWalk = new RevWalk(git.getRepository());) {
+                DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
+                RevWalk revWalk = new RevWalk(git.getRepository());) {
             diffFormatter.setRepository(git.getRepository());
             diffFormatter.setDetectRenames(true);
-            var baseCommit = revWalk.parseCommit(resolve(baseRef));
-            var targetCommit = revWalk.parseCommit(resolve(targetRef));
+            RevCommit baseCommit = revWalk.parseCommit(resolve(baseRef));
+            RevCommit targetCommit = revWalk.parseCommit(resolve(targetRef));
             return diffFormatter.scan(baseCommit, targetCommit);
         }
     }
     
     public List<DiffEntry> getDiffWd(String baseRef) throws IOException {
         try (
-                var diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
-                var revWalk = new RevWalk(git.getRepository());
+                DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE);
+                RevWalk revWalk = new RevWalk(git.getRepository());
                 ObjectReader reader = git.getRepository().newObjectReader()) {
             AbstractTreeIterator newTree = new FileTreeIterator(git.getRepository());
             diffFormatter.setRepository(git.getRepository());
             diffFormatter.setDetectRenames(true);
-            var baseCommit = revWalk.parseCommit(resolve(baseRef));
+            RevCommit baseCommit = revWalk.parseCommit(resolve(baseRef));
             CanonicalTreeParser oldTree = new CanonicalTreeParser();
             oldTree.reset(reader, baseCommit.getTree());
             return diffFormatter.scan(oldTree, newTree);
@@ -183,9 +184,9 @@ public class GitUtil implements AutoCloseable {
     }
 
     public GitCommit fromHash(String hash) throws IOException {
-        try (var revWalk = new RevWalk(git.getRepository())) {
-            var objectId = ObjectId.fromString(hash);
-            var revCommit = revWalk.parseCommit(objectId);
+        try (RevWalk revWalk = new RevWalk(git.getRepository())) {
+            ObjectId objectId = ObjectId.fromString(hash);
+            RevCommit revCommit = revWalk.parseCommit(objectId);
             return comprehendCommit(revCommit);
         }
     }
@@ -195,7 +196,7 @@ public class GitUtil implements AutoCloseable {
         PersonIdent committer = commit.getCommitterIdent();
         List<String> parentHashs = Stream.of(commit.getParents()).map(it -> it.getId().getName())
                 .collect(Collectors.toList());
-        List<GitRef> refs = git.getRepository().getAllRefsByPeeledObjectId().getOrDefault(commit.getId(), Set.<Ref>of())
+        List<GitRef> refs = git.getRepository().getAllRefsByPeeledObjectId().getOrDefault(commit.getId(), new HashSet<>())
                 .stream().map(GitRef::new).collect(Collectors.toList());
         
         return GitCommit.builder()

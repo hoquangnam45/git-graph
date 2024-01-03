@@ -4,9 +4,7 @@ import com.ttl.internal.vn.tool.builder.util.GitUtil;
 import lombok.Getter;
 import org.eclipse.jgit.api.errors.GitAPIException;
 
-import java.util.Optional;
 import java.util.Vector;
-import java.util.concurrent.Flow;
 
 @Getter
 public class GitFetchTask extends AbstractGitTask {

@@ -5,7 +5,6 @@ import java.awt.Dimension;
 import java.awt.event.ActionListener;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
-import java.awt.event.FocusEvent.Cause;
 import java.awt.event.FocusListener;
 import java.awt.event.InputMethodListener;
 import java.awt.event.KeyListener;
@@ -121,11 +120,6 @@ public class TextField extends JPanel {
     @Override
     public synchronized void addFocusListener(FocusListener l) {
         innerTextField.addFocusListener(l);
-    }
-
-    @Override
-    public void requestFocus(Cause cause) {
-        innerTextField.requestFocus(cause);
     }
 
     public List<ValidatorError> validateInput() {

@@ -199,7 +199,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
                     this.gitCloneTask = new GitCloneTask(usernameField.getText(), passwordField.getText(),
                             repoField.getText(), cloneFileField.getSelectedFile());
                     gitCloneTask.setProgressMonitor(new GitCloneProgressMonitor(gitCloneTask, new PrintWriter(System.out)));
-                    gitCloneTask.subscribe(new DefaultSubscriber<>() {
+                    gitCloneTask.subscribe(new DefaultSubscriber<Task>() {
                         @Override
                         public void onNext(Task task) {
                             progressBar.setMaximum(100);

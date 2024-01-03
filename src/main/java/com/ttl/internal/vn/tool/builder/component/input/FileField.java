@@ -22,11 +22,11 @@ public class FileField extends TextField {
 
     public FileField(String label, int labelWidth, int inputWidth, int fileSelectionMode,
             List<TextValidator> validators) {
-        this(label, labelWidth, inputWidth, fileSelectionMode, true, BoxLayout.X_AXIS, validators);
+        this(label, labelWidth, inputWidth, fileSelectionMode, true, BoxLayout.X_AXIS, validators, false);
     }
 
     public FileField(String label, int labelWidth, int inputWidth, int fileSelectionMode, boolean stretch, int axis,
-            List<TextValidator> validators) {
+            List<TextValidator> validators, boolean showHiddenFiles) {
         super();
         this.validators = new ArrayList<>();
         if (validators != null) {
@@ -56,12 +56,20 @@ public class FileField extends TextField {
                     fileChooser.setSelectedFile(location);
                 }
                 fileChooser.setFileSelectionMode(fileSelectionMode);
+                fileChooser.setFileHidingEnabled(!showHiddenFiles);
+                File selectedFile = new File(innerTextField.getText());
+                if (!selectedFile.exists() && !selectedFile.getParentFile().exists()) {
+                    selectedFile = new File("./");
+                } else if (selectedFile.getParentFile().exists()) {
+                    selectedFile = selectedFile.getParentFile();
+                }
+                fileChooser.setCurrentDirectory(selectedFile);
                 int result = fileChooser.showOpenDialog(this);
                 // Check if a file was selected
                 if (result == JFileChooser.APPROVE_OPTION) {
                     // Get the selected file
-                    File selectedFile = fileChooser.getSelectedFile();
-                    String text = selectedFile.getAbsolutePath();
+                    File newSelectedFile = fileChooser.getSelectedFile();
+                    String text = newSelectedFile.getAbsolutePath();
                     this.innerTextField.setText(text);
                 }
             });

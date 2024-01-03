@@ -6,6 +6,7 @@ import java.awt.event.FocusEvent;
 import java.awt.event.ItemEvent;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -70,7 +71,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
             gitTreeView.setGitBranch(getSelectedBranches());
             gitRefsComboBox.setLabel(BRANCH_LABEL);
         } else {
-            gitTreeView.setGitCommits(List.of(gitUtil.getHeadRef().getCommitHash()));
+            gitTreeView.setGitCommits(Collections.singletonList(gitUtil.getHeadRef().getCommitHash()));
             gitRefsComboBox.setEnabled(false);
             gitRefsComboBox.setEditable(true);
             gitRefsComboBox.setSelectedItem(gitUtil.getHeadRef().getCommitHash());
@@ -96,7 +97,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
         gitRefsComboBox = new ComboBox<>("", branchOptions, null);
         gitRefsComboBox.setPreferredSize(new Dimension(300, 50));
 
-        this.searchCommitTextField = new TextField("Search commit", 60, 120, true, BoxLayout.Y_AXIS, List.of());
+        this.searchCommitTextField = new TextField("Search commit", 60, 120, true, BoxLayout.Y_AXIS, Collections.emptyList());
         this.entryFilterField = new TextField("Filter entry regex", 60, 120, true, BoxLayout.Y_AXIS, null);
         entryFilterField.setVisible(session.getUseWorkingDirectory());
 
@@ -184,7 +185,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
 
     private List<String> getSelectedBranches() {
         if (gitRefsComboBox.getSelectedIndex() > 0) {
-            return List.of(gitRefsComboBox.getSelectedItem());
+            return Collections.singletonList(gitRefsComboBox.getSelectedItem());
         }
         return branches;
     }
@@ -203,7 +204,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
                         List<String> selectedBranches = getSelectedBranches();
                         gitTreeView.setGitBranch(selectedBranches);
                     } else {
-                        gitTreeView.setGitCommits(List.of(gitUtil.getHeadRef().getCommitHash()));
+                        gitTreeView.setGitCommits(Collections.singletonList(gitUtil.getHeadRef().getCommitHash()));
                     }
                 } catch (IOException e1) {
                     handleException(e1);

@@ -4,6 +4,7 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.text.MessageFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import javax.swing.GroupLayout;
@@ -93,7 +94,7 @@ public class DiffView extends JPanel implements ISimpleComponent {
 
     private List<JLabel> getLabelComponents(List<DiffEntry> entries) {
         if (entries == null) {
-            return List.of();
+            return Collections.emptyList();
         }
         List<JLabel> labels = new ArrayList<>();
         for (DiffEntry entry : diffEntries) {

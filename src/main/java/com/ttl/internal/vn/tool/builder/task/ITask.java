@@ -1,6 +1,6 @@
 package com.ttl.internal.vn.tool.builder.task;
 
-import java.util.concurrent.Flow;
+import com.ttl.internal.vn.tool.builder.component.Flow;
 
 public interface ITask extends Flow.Publisher<Task> {
     // Description of what the task is processing

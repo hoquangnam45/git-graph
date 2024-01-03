@@ -2,6 +2,7 @@ package com.ttl.internal.vn.tool.builder.git;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
@@ -75,12 +76,12 @@ public class GitWalk implements Iterator<GitCommit> {
 
     public void setGitBranch(List<String> branchNames) throws IOException {
         this.selectedBranches = getRefs(branchNames);
-        this.selectedCommits = List.of();
+        this.selectedCommits = Collections.emptyList();
         resetWalk();
     }
 
     public void setGitCommit(List<String> commitHashes) throws IOException {
-        this.selectedBranches = List.of();
+        this.selectedBranches = Collections.emptyList();
         this.selectedCommits = getCommits(commitHashes);
         resetWalk();
     }

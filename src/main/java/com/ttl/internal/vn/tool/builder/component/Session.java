@@ -103,7 +103,7 @@ public class Session implements AutoCloseable {
 
     public Set<CredentialEntry> loadCredentials(boolean fileOnly) throws IOException, URISyntaxException {
         return Stream
-                .of(fileOnly ? Set.<CredentialEntry>of() : inMemoryCredentialEntries, loadCredential(dotGitCredentials),
+                .of(fileOnly ? new HashSet<CredentialEntry>() : inMemoryCredentialEntries, loadCredential(dotGitCredentials),
                         loadCredential(xdgGitCredentials))
                 .flatMap(Set::stream)
                 .collect(Collectors.toSet());

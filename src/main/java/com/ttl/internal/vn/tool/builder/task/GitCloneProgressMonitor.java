@@ -41,9 +41,4 @@ public class GitCloneProgressMonitor implements ProgressMonitor {
     public boolean isCancelled() {
         return gitTask.isCancelled();
     }
-
-    @Override
-    public void showDuration(boolean enabled) {
-        textProgressMonitor.showDuration(enabled);
-    }
 }

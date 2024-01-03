@@ -1,7 +1,7 @@
 package com.ttl.internal.vn.tool.builder.task;
 
 import java.util.Optional;
-import java.util.concurrent.Flow;
+import com.ttl.internal.vn.tool.builder.component.Flow;
 
 import static org.eclipse.jgit.lib.ProgressMonitor.UNKNOWN;
 

@@ -99,7 +99,7 @@ public class ArtifactInfoDialog extends JDialog implements IDialog {
                         .addComponent(configNameField)
                         .addComponent(releasePackageNameField));
 
-                artifactInfoFields.put(module, List.of(patchNameField, configNameField, releasePackageNameField));
+                artifactInfoFields.put(module, Arrays.asList(patchNameField, configNameField, releasePackageNameField));
 
                 getArtifactInfoTabbedPane.addTab(module, inputPanel);
             }

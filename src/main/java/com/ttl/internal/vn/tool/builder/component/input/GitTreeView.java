@@ -87,7 +87,7 @@ public class GitTreeView extends JPanel implements ISimpleComponent {
 
     @Override
     public void initUI() {
-        this.table = new Table<>(Arrays.asList(
+        this.table = new Table<GitCommit>(Arrays.asList(
                 "Graph",
                 "Branch/tag",
                 "Commit message",
@@ -97,7 +97,7 @@ public class GitTreeView extends JPanel implements ISimpleComponent {
             public List<Object> convertToRow(GitCommit commit) {
                 String[] refs = commit.getRefs().stream().map(GitRef::getShortName).filter(StringUtils::isNotBlank)
                         .toArray(String[]::new);
-                return List.of("", refs, commit.getMessage(), commit.getAuthorTime().toString(), commit.getHash());
+                return Arrays.asList("", refs, commit.getMessage(), commit.getAuthorTime().toString(), commit.getHash());
             }
         };
         table.setSelectionMode(ListSelectionModel.SINGLE_INTERVAL_SELECTION);

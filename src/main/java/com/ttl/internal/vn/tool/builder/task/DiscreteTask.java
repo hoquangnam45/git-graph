@@ -1,7 +1,7 @@
 package com.ttl.internal.vn.tool.builder.task;
 
 import java.util.Optional;
-import java.util.concurrent.Flow;
+import com.ttl.internal.vn.tool.builder.component.Flow;
 
 public abstract class DiscreteTask extends Task implements ITaskController {
     protected String explainTask;

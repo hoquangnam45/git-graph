@@ -156,12 +156,12 @@ public class CliBuildTool implements AutoCloseable {
                 .map(it -> it.split(","))
                 .map(Arrays::asList)
                 .map(it -> it.stream().map(String::trim).collect(Collectors.toList()))
-                .orElse(List.of("config", "config_company"));
+                .orElse(Arrays.asList("config", "config_company"));
         this.databaseChangePrefixes = Optional.ofNullable(databaseChangePrefixes)
                 .map(it -> it.split(","))
                 .map(Arrays::asList)
                 .map(it -> it.stream().map(String::trim).collect(Collectors.toList()))
-                .orElse(List.of("DatabaseChange"));
+                .orElse(Collections.singletonList("DatabaseChange"));
 
         this.targetFolder = new File(artifactFolder, "target");
         this.buildFolder = new File(artifactFolder, "build");
@@ -314,7 +314,7 @@ public class CliBuildTool implements AutoCloseable {
                         String normalizeModuleRelativePath = relativize(moduleFolder, projectFolder).toString();
                         leafModuleRelativePaths.add(normalizeModuleRelativePath);
                     } else {
-                        modulesStack.addAll(mavenModel.getModules().stream().map(submodule -> Path.of(moduleRelativePath, submodule)).map(Path::toString).collect(Collectors.toList()));
+                        modulesStack.addAll(mavenModel.getModules().stream().map(submodule -> Paths.get(moduleRelativePath, submodule)).map(Path::toString).collect(Collectors.toList()));
                     }
                 }
                 CliBuildToolBuildContext buildCtx = (CliBuildToolBuildContext) buildTask.getBuildCtx();
@@ -399,7 +399,7 @@ public class CliBuildTool implements AutoCloseable {
                 buildCtx.setClasspathMap(classpathMap);
 
                 MavenTask mavenTask = calculateClasspaths(new File(projectFolder, "pom.xml"), m2SettingXml, buildCtx.getLeafModuleRelativePaths());
-                mavenTask.subscribe(new DefaultSubscriber<>() {
+                mavenTask.subscribe(new DefaultSubscriber<Task>() {
                     @SuppressWarnings("unchecked")
                     @Override
                     public void onComplete() {
@@ -468,7 +468,7 @@ public class CliBuildTool implements AutoCloseable {
                 // Calculate dependent module map: module relative path -> depend on module relative paths (not include self)
                 for (String leafModuleRelativePath : leafModuleRelativePaths) {
                     List<String> moduleClasspaths = buildCtx.getClasspathMap().get(leafModuleRelativePath).stream()
-                            .map(Path::of)
+                            .map(Paths::get)
                             .filter(it -> it.startsWith(projectFolder.getAbsolutePath()))
                             .map(path -> relativize(path.toFile(), projectFolder))
                             .map(Path::toString)
@@ -478,7 +478,7 @@ public class CliBuildTool implements AutoCloseable {
                 }
                 // Calculate depedent module map: module relative path -> depend on module relative paths (including self)
                 depedendOnModuleMap.putAll(depedendOnOtherModuleMap.entrySet().stream()
-                        .collect(Collectors.toMap(Entry::getKey, it -> Stream.of(List.of(it.getKey()), it.getValue())
+                        .collect(Collectors.toMap(Entry::getKey, it -> Stream.of(Collections.singletonList(it.getKey()), it.getValue())
                                 .flatMap(List::stream).collect(Collectors.toList()))));
 
                 // Calculate free module relative paths
@@ -545,8 +545,8 @@ public class CliBuildTool implements AutoCloseable {
     }
 
     private String getModuleFromRelativePath(String relativePathStr, List<String> leafModuleRelativePaths) {
-        Path relativePath = Path.of(relativePathStr);
-        return leafModuleRelativePaths.stream().filter(it -> relativePath.startsWith(Path.of(it))).findFirst().orElse(null);
+        Path relativePath = Paths.get(relativePathStr);
+        return leafModuleRelativePaths.stream().filter(it -> relativePath.startsWith(Paths.get(it))).findFirst().orElse(null);
     }
 
     private void noteDeletedFiles(List<String> freeModuleContainDeletedFiles,
@@ -563,7 +563,7 @@ public class CliBuildTool implements AutoCloseable {
                     BufferedWriter bw = new BufferedWriter(writer);) {
                 List<String> dependOnModules = dependOnModuleMap.get(module);
                 for (String dependOnModule : dependOnModules) {
-                    List<String> deletedEntries = moduleToDeletedEntriesMap.getOrDefault(dependOnModule, List.of()).stream().map(DiffEntry::getOldPath).collect(Collectors.toList());
+                    List<String> deletedEntries = moduleToDeletedEntriesMap.getOrDefault(dependOnModule, new ArrayList<>()).stream().map(DiffEntry::getOldPath).collect(Collectors.toList());
                     for (String entry : deletedEntries) {
                         bw.write(entry);
                         bw.newLine();
@@ -576,7 +576,7 @@ public class CliBuildTool implements AutoCloseable {
     private Model buildMavenProjectModel(File pomFile) throws ModelBuildingException, IOException, XmlPullParserException {
         MavenXpp3Reader pomReader = new MavenXpp3Reader();
         Model simpleModel = pomReader.read(new FileInputStream(pomFile));
-        if (!Optional.ofNullable(simpleModel.getModules()).orElse(List.of()).isEmpty()) {
+        if (!Optional.ofNullable(simpleModel.getModules()).orElseGet(ArrayList::new).isEmpty()) {
             ModelBuilder modelBuilder = new DefaultModelBuilderFactory().newInstance();
             ModelBuildingRequest buildingRequest = new DefaultModelBuildingRequest();
             buildingRequest.setPomFile(pomFile);
@@ -620,7 +620,7 @@ public class CliBuildTool implements AutoCloseable {
             while (!stack.isEmpty()) {
                 Class<?> c = stack.pop();
                 changedJavaClasses.add(c);
-                stack.addAll(List.of(c.getDeclaredClasses()));
+                stack.addAll(Arrays.asList(c.getDeclaredClasses()));
             }
 
             List<File> classFiles = packageToChangedClassFilesMap.computeIfAbsent(packageName, k -> new ArrayList<>());
@@ -701,7 +701,7 @@ public class CliBuildTool implements AutoCloseable {
             Map<String, List<File>> changedConfigFilesModuleMap = dependOnModules.stream()
                     .collect(Collectors.toMap(dependOnModule -> dependOnModule, dependOnModule -> {
                         File moduleFolder = new File(projectFolder, dependOnModule);
-                        return changedModuleToEntriesMap.getOrDefault(dependOnModule, List.of()).stream()
+                        return changedModuleToEntriesMap.getOrDefault(dependOnModule, new ArrayList<>()).stream()
                                 .map(DiffEntry::getNewPath)
                                 .map(it -> new File(projectFolder, it))
                                 .filter(changedFile -> {
@@ -718,7 +718,7 @@ public class CliBuildTool implements AutoCloseable {
             for (String dependOnModule : dependOnModules) {
                 File moduleFolder = new File(projectFolder, dependOnModule);
                 // Start copying
-                List<File> changedConfigFiles = changedConfigFilesModuleMap.getOrDefault(dependOnModule, List.of());
+                List<File> changedConfigFiles = changedConfigFilesModuleMap.getOrDefault(dependOnModule, new ArrayList<>());
                 for (File changedFile : changedConfigFiles) {
                     Path relativePathToModule = relativize(changedFile, moduleFolder);
                     File destinationFile = new File(buildConfigFolder,
@@ -773,7 +773,7 @@ public class CliBuildTool implements AutoCloseable {
             Map<String, List<File>> changedDatabaseModuleMap = dependOnModules.stream()
                     .collect(Collectors.toMap(dependOnModule -> dependOnModule, dependOnModule -> {
                         File moduleFolder = new File(projectFolder, dependOnModule);
-                        return changedModuleToEntriesMap.getOrDefault(dependOnModule, List.of()).stream()
+                        return changedModuleToEntriesMap.getOrDefault(dependOnModule, new ArrayList<>()).stream()
                                 .map(DiffEntry::getNewPath)
                                 .map(it -> new File(projectFolder, it))
                                 .filter(changedFile -> {
@@ -910,7 +910,7 @@ public class CliBuildTool implements AutoCloseable {
         InvocationRequest request = new DefaultInvocationRequest();
         request.setPomFile(pomFile);
         List<String> goals = new ArrayList<>();
-        goals.addAll(List.of("clean", "compile", "dependency:tree", "dependency:build-classpath"));
+        goals.addAll(Arrays.asList("clean", "compile", "dependency:tree", "dependency:build-classpath"));
         request.setGoals(goals);
         request.setBatchMode(true);
         request.setOffline(false);

@@ -1,6 +1,7 @@
 package com.ttl.internal.vn.tool.builder.component.input;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -20,14 +21,14 @@ public class InputGroup {
     public List<ValidatorError> validate() {
         return inputs.stream().map(it -> {
             if (it instanceof TextField) {
-                var textField = (TextField) it;
+                TextField textField = (TextField) it;
                 if (textField.isEnabled()) {
                     return textField.validateInput();
                 }
             } else if (it instanceof InputGroup) {
                 return ((InputGroup) it).validate();
             }
-            return List.<ValidatorError>of();
+            return Collections.<ValidatorError>emptyList();
         }).flatMap(List::stream).collect(Collectors.toList());
     }
 

@@ -70,11 +70,11 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
     @Override
     public void initUI() {
         this.artifactFolderFileField = new FileField("Artifact folder*", LABEL_WIDTH, INPUT_WIDTH,
-                JFileChooser.DIRECTORIES_ONLY, true, BoxLayout.Y_AXIS, List.of(TextField.Validator.notBlank()));
+                JFileChooser.DIRECTORIES_ONLY, true, BoxLayout.Y_AXIS, Collections.singletonList(TextField.Validator.notBlank()), false);
         artifactFolderFileField
                 .setText(Paths.get(System.getProperty("java.io.tmpdir"), "buildArtifact").toAbsolutePath().toString());
 
-        List<TextValidator> xmlFileFileValidators = List.of(val -> {
+        List<TextValidator> xmlFileFileValidators = Collections.singletonList(val -> {
             File pomFile = new File(val);
             if (!pomFile.isFile() || !pomFile.getName().toLowerCase().endsWith(".xml")) {
                 return ValidatorError.builder()
@@ -85,11 +85,11 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
             return null;
         });
         this.mavenXmlSettingsFileField = new FileField("Maven settings xml file*", LABEL_WIDTH, INPUT_WIDTH,
-                JFileChooser.FILES_ONLY, true, BoxLayout.Y_AXIS, xmlFileFileValidators);
+                JFileChooser.FILES_ONLY, true, BoxLayout.Y_AXIS, xmlFileFileValidators, true);
         mavenXmlSettingsFileField
                 .setText(Paths.get(System.getProperty("user.home"), ".m2", "settings.xml").toAbsolutePath().toString());
         this.patchFileField = new FileField("Git patch files", LABEL_WIDTH, INPUT_WIDTH, JFileChooser.FILES_ONLY,
-                true, BoxLayout.Y_AXIS, null);
+                true, BoxLayout.Y_AXIS, null, false);
 
         JPanel inputPanel = new JPanel();
         GroupLayout inputGroupLayout = new GroupLayout(inputPanel);
@@ -263,7 +263,7 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                 diffView.setDiffEntries(diffEntries);
                 SwingUtilities.getRoot(this).setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
                 ConfigDashBoard.this.buildTask = command.build(false);
-                buildTask.subscribe(new DefaultSubscriber<>() {
+                buildTask.subscribe(new DefaultSubscriber<Task>() {
                     @Override
                     public void onNext(Task task) {
                         try {
