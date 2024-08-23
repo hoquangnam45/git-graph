@@ -41,8 +41,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.zip.ZipOutputStream;
 
-import static java.lang.Thread.sleep;
-
 public class CliBuildTool implements AutoCloseable {
     private final boolean clone;
     private final String repoURI;
@@ -346,21 +344,21 @@ public class CliBuildTool implements AutoCloseable {
                 for (DiffEntry diffEntry : buildCtx.getDiffEntries()) {
                     switch (diffEntry.getChangeType()) {
                         case DELETE: {
-                            Optional.ofNullable(getModuleFromRelativePath(diffEntry.getOldPath(), leafModuleRelativePaths))
+                            Optional.ofNullable(getModuleFromRelativePath(projectFolder.getAbsolutePath(), diffEntry.getOldPath(), leafModuleRelativePaths))
                                     .ifPresent(moduleRelativePath ->  moduleToDeletedEntriesMap.computeIfAbsent(moduleRelativePath, k -> new ArrayList<>()).add(diffEntry));
                             break;
                         }
                         case MODIFY:
                         case COPY:
                         case ADD: {
-                            Optional.ofNullable(getModuleFromRelativePath(diffEntry.getNewPath(), leafModuleRelativePaths))
+                            Optional.ofNullable(getModuleFromRelativePath(projectFolder.getAbsolutePath(), diffEntry.getNewPath(), leafModuleRelativePaths))
                                     .ifPresent(moduleRelativePath ->  moduleToChangedEntriesMap.computeIfAbsent(moduleRelativePath, k -> new ArrayList<>()).add(diffEntry));
                             break;
                         }
                         case RENAME: {
-                            Optional.ofNullable(getModuleFromRelativePath(diffEntry.getOldPath(), leafModuleRelativePaths))
+                            Optional.ofNullable(getModuleFromRelativePath(projectFolder.getAbsolutePath(), diffEntry.getOldPath(), leafModuleRelativePaths))
                                     .ifPresent(deletedModuleRelativePath ->  moduleToDeletedEntriesMap.computeIfAbsent(deletedModuleRelativePath, k -> new ArrayList<>()).add(diffEntry));
-                            Optional.ofNullable(getModuleFromRelativePath(diffEntry.getNewPath(), leafModuleRelativePaths))
+                            Optional.ofNullable(getModuleFromRelativePath(projectFolder.getAbsolutePath(), diffEntry.getNewPath(), leafModuleRelativePaths))
                                     .ifPresent(modifyModuleRelativePath ->  moduleToChangedEntriesMap.computeIfAbsent(modifyModuleRelativePath, k -> new ArrayList<>()).add(diffEntry));
                             break;
                         }
@@ -440,7 +438,7 @@ public class CliBuildTool implements AutoCloseable {
                         }
                     }
                     return false;
-                } catch (Exception ex1) {
+                } catch (Throwable ex1) {
                     mavenTask.stopExceptionally(ex1);
                     return false;
                 }
@@ -469,10 +467,10 @@ public class CliBuildTool implements AutoCloseable {
                 for (String leafModuleRelativePath : leafModuleRelativePaths) {
                     List<String> moduleClasspaths = buildCtx.getClasspathMap().get(leafModuleRelativePath).stream()
                             .map(Paths::get)
-                            .filter(it -> it.startsWith(projectFolder.getAbsolutePath()))
+                            .filter(classpath -> classpath.startsWith(projectFolder.getAbsolutePath()))
                             .map(path -> relativize(path.toFile(), projectFolder))
                             .map(Path::toString)
-                            .map(it -> getModuleFromRelativePath(it, leafModuleRelativePaths))
+                            .map(classpath -> getModuleFromRelativePath(projectFolder.getAbsolutePath(), classpath, leafModuleRelativePaths))
                             .collect(Collectors.toList());
                     depedendOnOtherModuleMap.put(leafModuleRelativePath, moduleClasspaths);
                 }
@@ -498,6 +496,27 @@ public class CliBuildTool implements AutoCloseable {
                     List<String> dependOnModules = depedendOnModuleMap.get(module);
                     return dependOnModules.stream().anyMatch(moduleToChangedEntriesMap::containsKey);
                 }).collect(Collectors.toList()));
+                return true;
+            }
+        });
+
+        buildTask.addSubTask(new DiscreteTask("Add maven build target folder to classpath of each free changed module") {
+
+            @Override
+            public boolean start() {
+                inProgress = true;
+                CliBuildToolBuildContext buildCtx = (CliBuildToolBuildContext) buildTask.getBuildCtx();
+
+                buildCtx.getFreeChangedModules().forEach(freeChangedModuleRelativePath -> {
+                    File mavenOutputTargetDir = Paths.get(projectFolder.getAbsolutePath(), freeChangedModuleRelativePath, "target", "classes").toFile();
+                    List<String> moduleClasspaths = buildCtx.getClasspathMap().get(freeChangedModuleRelativePath);
+                    List<String> addedModuleClasspaths = Stream.of(Stream.of(mavenOutputTargetDir), moduleClasspaths.stream().map(File::new))
+                            .flatMap(st -> st)
+                            .filter(File::exists)
+                            .map(File::getAbsolutePath)
+                            .collect(Collectors.toList());
+                    buildCtx.getClasspathMap().put(freeChangedModuleRelativePath, addedModuleClasspaths);
+                });
                 return true;
             }
         });
@@ -544,9 +563,15 @@ public class CliBuildTool implements AutoCloseable {
         return buildTask;
     }
 
-    private String getModuleFromRelativePath(String relativePathStr, List<String> leafModuleRelativePaths) {
-        Path relativePath = Paths.get(relativePathStr);
-        return leafModuleRelativePaths.stream().filter(it -> relativePath.startsWith(Paths.get(it))).findFirst().orElse(null);
+    private String getModuleFromRelativePath(String rootPath, String checkedPath, List<String> leafModuleRelativePaths) {
+        String normalizedCheckedPath = Paths.get(rootPath, checkedPath).normalize().toAbsolutePath().toString();
+        for (String leafModuleRelativePath : leafModuleRelativePaths) {
+            String normalizedLeafModuleRelativePath = Paths.get(rootPath, leafModuleRelativePath).normalize().toAbsolutePath().toString();
+            if (normalizedCheckedPath.startsWith(normalizedLeafModuleRelativePath)) {
+                return leafModuleRelativePath;
+            }
+        }
+        return null;
     }
 
     private void noteDeletedFiles(List<String> freeModuleContainDeletedFiles,
@@ -588,7 +613,7 @@ public class CliBuildTool implements AutoCloseable {
     }
 
     private static Path relativize(File child, File parent) {
-        return parent.toPath().toAbsolutePath().relativize(child.toPath().toAbsolutePath());
+        return parent.toPath().toAbsolutePath().normalize().relativize(child.toPath().toAbsolutePath().normalize());
     }
 
     private RevCommit checkout(String target) throws RevisionSyntaxException, IOException, GitAPIException {

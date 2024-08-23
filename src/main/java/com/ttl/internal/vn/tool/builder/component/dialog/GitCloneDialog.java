@@ -217,14 +217,14 @@ public class GitCloneDialog extends JDialog implements IDialog {
                     SwingGraphicUtil.supply(() -> {
                         try {
                             return gitCloneTask.start();
-                        } catch (Exception ex1) {
+                        } catch (Throwable ex1) {
                             throw new RuntimeException(ex1);
                         }
                     });
                 } else {
                     throw new ValidationException(errors.get(0));
                 }
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
                 handleException(ex);
             }
         });
@@ -241,7 +241,7 @@ public class GitCloneDialog extends JDialog implements IDialog {
     }
 
     @Override
-    public void handleException(Exception e) {
+    public void handleException(Throwable e) {
         logger.error(e.getMessage(), e);
         inputGroup.setEditable(true);
         inputGroup2.setEditable(true);

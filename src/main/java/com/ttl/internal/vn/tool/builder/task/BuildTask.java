@@ -52,7 +52,7 @@ public abstract class BuildTask extends DiscreteTask {
                         return false;
                     }
                     task.done();
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     stopExceptionally(e);
                     return false;
                 }
@@ -62,7 +62,7 @@ public abstract class BuildTask extends DiscreteTask {
         } finally {
             try {
                 cleanup();
-            } catch (Exception e) {
+            } catch (Throwable e) {
                 stopExceptionally(e);
             }
         }
@@ -75,7 +75,7 @@ public abstract class BuildTask extends DiscreteTask {
         tasks.stream().filter(task -> !task.isStop()).forEach(task -> {
             try {
                 task.cancel();
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
                 throw new IllegalStateException("Stop exceptionally failed for task  [" + task.explainTask() + "]");
             }
         });

@@ -280,7 +280,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
                 currentCommitLabel.setText(
                         MessageFormatter.format("Commit {}", gitUtil.getHeadRef().getShortCommitHash()).getMessage());
                 JOptionPane.showMessageDialog(this, "Checkout success", "Checkout", JOptionPane.INFORMATION_MESSAGE);
-            } catch (Exception e1) {
+            } catch (Throwable e1) {
                 handleException(e1);
             } finally {
                 checkOutButton.setEnabled(true);
@@ -302,7 +302,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
                 gitTreeView.setGitBranch(selectedBranches);
                 gitTreeView.clearSelection();
                 gitTreeView.resetGraph();
-            } catch (Exception e1) {
+            } catch (Throwable e1) {
                 handleException(e1);
             } finally {
                 fetchButton.setEnabled(true);
@@ -335,7 +335,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
                     entryFilterField.setVisible(false);
                     session.setEntryFilter(entryFilterField.getText());
                 }
-            } catch (Exception e1) {
+            } catch (Throwable e1) {
                 handleException(e1);
             }
         });
@@ -343,7 +343,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
             try {
                 currentCommitLabel.setText(getWorkingDirectoryCommitLabel());
                 refreshGitRelatedUI();
-            } catch (Exception ex) {
+            } catch (Throwable ex) {
                 handleException(ex);
             }
         });
@@ -365,7 +365,7 @@ public class BuildToolDashBoard extends JFrame implements ISimpleComponent {
     }
 
     @Override
-    public void handleException(Exception e) {
+    public void handleException(Throwable e) {
         gitTreeView.clearSelection();
         try {
             currentCommitLabel.setText(

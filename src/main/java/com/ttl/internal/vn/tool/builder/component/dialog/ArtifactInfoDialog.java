@@ -85,6 +85,8 @@ public class ArtifactInfoDialog extends JDialog implements IDialog {
                     patchNameField.setText("Patch.jar");
                 } else if (module.toLowerCase().contains("server")) {
                     patchNameField.setText("SPatch.jar");
+                } else {
+                    patchNameField.setText("Patch.jar");
                 }
                 configNameField.setText("Config.jar");
                 releasePackageNameField.setText("ReleasePackage.zip");
@@ -157,7 +159,7 @@ public class ArtifactInfoDialog extends JDialog implements IDialog {
     }
 
     @Override
-    public void handleException(Exception e) {
+    public void handleException(Throwable e) {
         logger.error(e.getMessage(), e);
         status = ArtifactInfoDialogStatus.ERROR;
         JOptionPane.showMessageDialog(this, e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);

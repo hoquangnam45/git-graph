@@ -274,7 +274,7 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                                 int numberOfDoneTasks = (int) buildTask.getSubtasks().stream().filter(Task::isDone).count();
                                 buildToolDashBoard.getProgressBar().setStatus("<html>Current task (" + (numberOfDoneTasks + 1) + "/" + buildTask.getSubtasks().size() + ")<br>Description: " + buildTask.explainTask().replace("\n", "<br>")  + " - " + (int) (100. * task.percentage()) + "%</html>");
                             });
-                        } catch (Exception e) {
+                        } catch (Throwable e) {
                             handleException(e);
                         }
                     }
@@ -286,7 +286,7 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                             cancelBtn.setVisible(false);
                             buildToolDashBoard.getProgressBar().setValue(0);
                             buildToolDashBoard.getProgressBar().setStatus("");
-                            handleException((Exception) e);
+                            handleException(e);
                         });
                     }
 
@@ -309,7 +309,7 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
                     }
                 });
                 SwingGraphicUtil.run(buildTask::start);
-            } catch (Exception e1) {
+            } catch (Throwable e1) {
                 enableInput();
                 handleException(e1);
             }
@@ -371,7 +371,7 @@ public class ConfigDashBoard extends JPanel implements ISimpleComponent {
     }
 
     @Override
-    public void handleException(Exception e) {
+    public void handleException(Throwable e) {
         Throwable cause = e.getCause();
         if (cause != null) {
             logger.error(cause.getMessage(), cause);

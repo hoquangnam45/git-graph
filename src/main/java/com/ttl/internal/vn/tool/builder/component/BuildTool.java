@@ -166,7 +166,7 @@ public class BuildTool extends JFrame implements ISimpleComponent {
             dispose();
             BuildToolDashBoard dashBoard = new BuildToolDashBoard(Session.getInstance());
             dashBoard.setVisible(true);
-        } catch (Exception e) {
+        } catch (Throwable e) {
             handleException(e);
         }
     }
@@ -177,7 +177,7 @@ public class BuildTool extends JFrame implements ISimpleComponent {
     }
 
     @Override
-    public void handleException(Exception e) {
+    public void handleException(Throwable e) {
         logger.error(e.getMessage(), e);
         JOptionPane.showMessageDialog(this, e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
     }

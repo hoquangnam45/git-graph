@@ -154,7 +154,7 @@ public class GitTreeView extends JPanel implements ISimpleComponent {
     }
 
     @Override
-    public void handleException(Exception e) throws Exception {
+    public void handleException(Throwable e) throws Throwable {
         logger.error(e.getMessage(), e);
         // Rethrow exception, let the parent handle exception
         throw e;

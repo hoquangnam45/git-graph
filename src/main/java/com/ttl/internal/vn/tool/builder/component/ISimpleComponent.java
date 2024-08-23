@@ -1,11 +1,11 @@
 package com.ttl.internal.vn.tool.builder.component;
 
 public interface ISimpleComponent {
-    void initUI() throws Exception;
+    void initUI() throws Throwable;
 
-    void refreshUI() throws Exception;
+    void refreshUI() throws Throwable;
 
-    void registerListeners() throws Exception;
+    void registerListeners() throws Throwable;
 
-    void handleException(Exception e) throws Exception;
+    void handleException(Throwable e) throws Throwable;
 }

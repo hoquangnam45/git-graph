@@ -145,7 +145,7 @@ public class DiffView extends JPanel implements ISimpleComponent {
     }
 
     @Override
-    public void handleException(Exception e) throws Exception {
+    public void handleException(Throwable e) throws Throwable {
         /** noop */
     }
 }

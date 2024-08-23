@@ -2,3 +2,8 @@ target
 build
 .vscode
 .idea
+.settings
+.classpath
+.factorypath
+.project
+.history
